@@ -1,10 +1,13 @@
 #pragma once
 
 #include "hid_device.h"
+#include "logger.h"
 #include <string>
 #include <thread>
 #include <chrono>
 #include <algorithm>
+#include <sstream>
+#include <iomanip>
 
 class OP1WDevice
 {
@@ -52,6 +55,7 @@ public:
     {
         if (!IsConnected())
         {
+            LOG(LogLevel::Debug, "ReadBattery: Device not connected");
             return {};
         }
 
@@ -66,8 +70,11 @@ public:
 
             for (int attempt = 0; attempt < NUM_ATTEMPTS; ++attempt)
             {
+                LOG(LogLevel::Debug, "ReadBattery: Attempt " + std::to_string(attempt + 1) + "/" + std::to_string(NUM_ATTEMPTS));
+
                 if (!SendBatteryCommand(REPORT_ID, BATTERY_CMD, REPORT_SIZE))
                 {
+                    LOG(LogLevel::Debug, "ReadBattery: Failed to send battery command");
                     return {};
                 }
 
@@ -76,8 +83,18 @@ public:
                 BYTE read_buffer[REPORT_SIZE] = {0};
                 if (!device.GetFeatureReport(REPORT_ID, read_buffer, REPORT_SIZE))
                 {
+                    LOG(LogLevel::Debug, "ReadBattery: Failed to get feature report");
                     return {};
                 }
+
+                std::ostringstream oss;
+                oss << "ReadBattery: Response bytes [0-3]: " << std::hex << std::setfill('0')
+                    << std::setw(2) << static_cast<int>(read_buffer[0]) << " "
+                    << std::setw(2) << static_cast<int>(read_buffer[1]) << " "
+                    << std::setw(2) << static_cast<int>(read_buffer[2]) << " "
+                    << std::setw(2) << static_cast<int>(read_buffer[3])
+                    << ", byte[16]: " << std::setw(2) << static_cast<int>(read_buffer[16]);
+                LOG(LogLevel::Debug, oss.str());
 
                 if (attempt == 0)
                 {
@@ -85,21 +102,28 @@ public:
                     continue;
                 }
 
-                if (read_buffer[1] != 0x01)
+                if (read_buffer[1] != 0x01 && read_buffer[1] != 0x08)
                 {
+                    LOG(LogLevel::Debug, "ReadBattery: Invalid response - unexpected byte[1] value");
                     return {};
                 }
 
                 status = ParseBatteryResponse(read_buffer[16]);
                 last_status = status;
+                LOG(LogLevel::Debug, "ReadBattery: Success - Battery " + std::to_string(status.percentage) + "%");
                 return status;
             }
         }
+        catch (const std::exception &ex)
+        {
+            LOG(LogLevel::Error, std::string("ReadBattery exception: ") + ex.what());
+        }
         catch (...)
         {
-            // Silent fail
+            LOG(LogLevel::Error, "ReadBattery: Unknown exception");
         }
 
+        LOG(LogLevel::Debug, "ReadBattery: All attempts failed");
         return {};
     }
 
