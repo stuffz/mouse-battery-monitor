@@ -1,0 +1,10 @@
+// Resource file for Endgame Gear Mouse Battery Monitor
+// Defines the application icon
+//
+// Icon Attribution:
+// Icons from Bitsies icon pack by Recep Kutuk
+// Licensed under CC BY 4.0: https://creativecommons.org/licenses/by/4.0/
+// Source: https://icon-icons.com/pack/bitsies/1515
+// Modifications: Modified and converted to .ico format
+
+IDI_ICON1 ICON "app_icon.ico"
