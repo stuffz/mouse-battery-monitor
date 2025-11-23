@@ -1,0 +1,14 @@
+# Endgame Gear Mouse Battery Monitor Configuration
+
+# Update interval in seconds (default: 10 seconds for responsive updates)
+# Can be increased to reduce resource usage (e.g., 60 or 300)
+update_interval_seconds = 10
+
+# Show notifications for low battery
+show_notifications = true
+
+# Battery percentage threshold for low battery warning (default: 20%)
+low_battery_threshold = 20
+
+# Debug mode - shows console window and verbose logging (default: false)
+debug_mode = false

@@ -1,0 +1,32 @@
+# Build output
+build/
+release/
+*.exe
+*.o
+*.obj
+*.a
+*.lib
+
+# Logs
+*.log
+
+# IDE files
+.vscode/
+.vs/
+*.suo
+*.user
+*.sln
+*.vcxproj*
+
+# Temporary files
+*.tmp
+*.bak
+*~
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# Debug files
+*.pdb
+*.ilk
