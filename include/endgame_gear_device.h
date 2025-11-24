@@ -9,12 +9,10 @@
 #include <sstream>
 #include <iomanip>
 
-class OP1WDevice
+class EndgameGearDevice
 {
 public:
     static constexpr USHORT VID = 0x3367;
-    static constexpr USHORT PID_WIRELESS = 0x1970;
-    static constexpr USHORT PID_WIRED = 0x1972;
     static constexpr USHORT USAGE_PAGE = 0xFF01;
     static constexpr USHORT USAGE = 0x0002;
 
@@ -25,19 +23,24 @@ public:
         bool is_wireless{false};
     };
 
-    OP1WDevice() : current_pid(0), last_status{} {}
-
-    ~OP1WDevice()
+    virtual ~EndgameGearDevice()
     {
         Disconnect();
     }
 
-    OP1WDevice(const OP1WDevice &) = delete;
-    OP1WDevice &operator=(const OP1WDevice &) = delete;
+    EndgameGearDevice(const EndgameGearDevice &) = delete;
+    EndgameGearDevice &operator=(const EndgameGearDevice &) = delete;
 
     bool FindAndConnect()
     {
-        return FindAndConnectWithPID(PID_WIRELESS) || FindAndConnectWithPID(PID_WIRED);
+        for (USHORT pid : GetSupportedPIDs())
+        {
+            if (FindAndConnectWithPID(pid))
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     void Disconnect()
@@ -55,7 +58,7 @@ public:
     {
         if (!IsConnected())
         {
-            LOG(LogLevel::Debug, "ReadBattery: Device not connected");
+            LOG(LogLevel::Debug, std::string(GetDeviceType()) + ": Device not connected");
             return {};
         }
 
@@ -70,11 +73,12 @@ public:
 
             for (int attempt = 0; attempt < NUM_ATTEMPTS; ++attempt)
             {
-                LOG(LogLevel::Debug, "ReadBattery: Attempt " + std::to_string(attempt + 1) + "/" + std::to_string(NUM_ATTEMPTS));
+                LOG(LogLevel::Debug, std::string(GetDeviceType()) + ": Attempt " +
+                                         std::to_string(attempt + 1) + "/" + std::to_string(NUM_ATTEMPTS));
 
                 if (!SendBatteryCommand(REPORT_ID, BATTERY_CMD, REPORT_SIZE))
                 {
-                    LOG(LogLevel::Debug, "ReadBattery: Failed to send battery command");
+                    LOG(LogLevel::Debug, std::string(GetDeviceType()) + ": Failed to send battery command");
                     return {};
                 }
 
@@ -83,12 +87,12 @@ public:
                 BYTE read_buffer[REPORT_SIZE] = {0};
                 if (!device.GetFeatureReport(REPORT_ID, read_buffer, REPORT_SIZE))
                 {
-                    LOG(LogLevel::Debug, "ReadBattery: Failed to get feature report");
+                    LOG(LogLevel::Debug, std::string(GetDeviceType()) + ": Failed to get feature report");
                     return {};
                 }
 
                 std::ostringstream oss;
-                oss << "ReadBattery: Response bytes [0-3]: " << std::hex << std::setfill('0')
+                oss << GetDeviceType() << ": Response bytes [0-3]: " << std::hex << std::setfill('0')
                     << std::setw(2) << static_cast<int>(read_buffer[0]) << " "
                     << std::setw(2) << static_cast<int>(read_buffer[1]) << " "
                     << std::setw(2) << static_cast<int>(read_buffer[2]) << " "
@@ -104,42 +108,48 @@ public:
 
                 if (read_buffer[1] != 0x01 && read_buffer[1] != 0x08)
                 {
-                    LOG(LogLevel::Debug, "ReadBattery: Invalid response - unexpected byte[1] value");
+                    LOG(LogLevel::Debug, std::string(GetDeviceType()) + ": Invalid response - unexpected byte[1] value");
                     return {};
                 }
 
                 status = ParseBatteryResponse(read_buffer[16]);
                 last_status = status;
-                LOG(LogLevel::Debug, "ReadBattery: Success - Battery " + std::to_string(status.percentage) + "%");
+                LOG(LogLevel::Debug, std::string(GetDeviceType()) + ": Success - Battery " +
+                                         std::to_string(status.percentage) + "%");
                 return status;
             }
         }
         catch (const std::exception &ex)
         {
-            LOG(LogLevel::Error, std::string("ReadBattery exception: ") + ex.what());
+            LOG(LogLevel::Error, std::string(GetDeviceType()) + " exception: " + ex.what());
         }
         catch (...)
         {
-            LOG(LogLevel::Error, "ReadBattery: Unknown exception");
+            LOG(LogLevel::Error, std::string(GetDeviceType()) + ": Unknown exception");
         }
 
-        LOG(LogLevel::Debug, "ReadBattery: All attempts failed");
+        LOG(LogLevel::Debug, std::string(GetDeviceType()) + ": All attempts failed");
         return {};
     }
 
-    std::wstring GetDeviceName() const { return L"OP1W"; }
+    virtual std::wstring GetDeviceName() const = 0;
+    virtual const char *GetDeviceType() const = 0;
+    virtual int GetPriority() const = 0;
 
     std::wstring GetConnectionMode() const
     {
-        return current_pid == PID_WIRED      ? L"Wired (Charging)"
-               : current_pid == PID_WIRELESS ? L"Wireless"
-                                             : L"Unknown";
+        if (current_pid == 0)
+            return L"Unknown";
+        return IsWiredPID(current_pid) ? L"Wired (Charging)" : L"Wireless";
     }
 
-private:
-    HIDDevice device;
-    USHORT current_pid;
-    BatteryStatus last_status;
+    USHORT GetCurrentPID() const { return current_pid; }
+
+protected:
+    EndgameGearDevice() : current_pid(0), last_status{} {}
+
+    virtual std::vector<USHORT> GetSupportedPIDs() const = 0;
+    virtual bool IsWiredPID(USHORT pid) const = 0;
 
     bool FindAndConnectWithPID(USHORT pid)
     {
@@ -149,6 +159,8 @@ private:
             if (info.usage_page == USAGE_PAGE && info.usage == USAGE && device.Open(info.path))
             {
                 current_pid = pid;
+                LOG(LogLevel::Info, std::string(GetDeviceType()) + " connected (PID: 0x" +
+                                        std::to_string(pid) + ")");
                 return true;
             }
         }
@@ -167,13 +179,12 @@ private:
     {
         BatteryStatus status;
         status.percentage = (std::min)(static_cast<int>(battery_value), 100);
-        status.is_wireless = (current_pid == PID_WIRELESS);
-        status.is_charging = (current_pid == PID_WIRED);
+        status.is_wireless = !IsWiredPID(current_pid);
+        status.is_charging = IsWiredPID(current_pid);
         return status;
     }
 
-    bool IsSupportedPID(USHORT pid) const
-    {
-        return pid == PID_WIRELESS || pid == PID_WIRED;
-    }
+    HIDDevice device;
+    USHORT current_pid;
+    BatteryStatus last_status;
 };
