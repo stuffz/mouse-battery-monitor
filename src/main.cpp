@@ -3,6 +3,7 @@
 #include <shobjidl.h>
 #include <propkey.h>
 #include <propvarutil.h>
+#include <dbt.h>
 #include <string>
 #include <sstream>
 #include <filesystem>
@@ -10,7 +11,7 @@
 #include <limits>
 #include <exception>
 #include "config.h"
-#include "op1w_device.h"
+#include "device_manager.h"
 #include "icon_loader.h"
 #include "logger.h"
 
@@ -29,6 +30,7 @@ namespace Constants
     constexpr UINT WM_TRAYICON = WM_USER + 1;
     constexpr UINT ID_TRAY_ICON = 1;
     constexpr UINT ID_TIMER_UPDATE = 1;
+    constexpr UINT ID_TIMER_DEVICE_CHANGE = 2;
     constexpr UINT ID_MENU_UPDATE = 1001;
     constexpr UINT ID_MENU_TRIGGER_LOW_BATTERY = 1002;
     constexpr UINT ID_MENU_ABOUT = 1003;
@@ -45,8 +47,9 @@ struct AppContext
     HWND hwnd{nullptr};
     NOTIFYICONDATAW nid{};
     Config config;
-    OP1WDevice device;
+    DeviceManager device_manager;
     IconLoader icon_loader;
+    HDEVNOTIFY hDeviceNotify{nullptr};
 };
 
 static AppContext g_app;
@@ -67,8 +70,8 @@ static void ShowAboutDialog(HWND hwnd);
 static void TriggerLowBatteryNotification();
 static void CleanupTrayIcon();
 static void WaitForExitIfDebug();
-static std::wstring BuildTooltip(const OP1WDevice::BatteryStatus &status);
-static void HandleLowBatteryNotification(const OP1WDevice::BatteryStatus &status);
+static std::wstring BuildTooltip(const DeviceManager::BatteryStatus &status);
+static void HandleLowBatteryNotification(const DeviceManager::BatteryStatus &status);
 
 static void SetAppUserModelID()
 {
@@ -115,6 +118,23 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE /*hPrevInstance*/, LPSTR /*lpC
         }
 
         InitTrayIcon(g_app.hwnd);
+
+        // Register for USB device notifications
+        DEV_BROADCAST_DEVICEINTERFACE_W NotificationFilter = {};
+        NotificationFilter.dbcc_size = sizeof(DEV_BROADCAST_DEVICEINTERFACE_W);
+        NotificationFilter.dbcc_devicetype = DBT_DEVTYP_DEVICEINTERFACE;
+        HidD_GetHidGuid(&NotificationFilter.dbcc_classguid);
+
+        g_app.hDeviceNotify = RegisterDeviceNotificationW(
+            g_app.hwnd,
+            &NotificationFilter,
+            DEVICE_NOTIFY_WINDOW_HANDLE);
+
+        if (g_app.hDeviceNotify)
+        {
+            LOG(LogLevel::Debug, "USB device notifications registered");
+        }
+
         SetTimer(g_app.hwnd, Constants::ID_TIMER_UPDATE, g_app.config.GetUpdateIntervalSeconds() * 1000, nullptr);
         LOG(LogLevel::Debug, "Update timer set for " + std::to_string(g_app.config.GetUpdateIntervalSeconds()) + " seconds");
 
@@ -185,9 +205,30 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         {
             UpdateBatteryStatus();
         }
+        else if (wParam == Constants::ID_TIMER_DEVICE_CHANGE)
+        {
+            KillTimer(hwnd, Constants::ID_TIMER_DEVICE_CHANGE);
+            LOG(LogLevel::Debug, "Device change detected - checking for device updates");
+            UpdateBatteryStatus();
+        }
+        return 0;
+
+    case WM_DEVICECHANGE:
+        if (wParam == DBT_DEVICEARRIVAL || wParam == DBT_DEVICEREMOVECOMPLETE)
+        {
+            PDEV_BROADCAST_HDR pHdr = (PDEV_BROADCAST_HDR)lParam;
+            if (pHdr && pHdr->dbch_devicetype == DBT_DEVTYP_DEVICEINTERFACE)
+            {
+                SetTimer(hwnd, Constants::ID_TIMER_DEVICE_CHANGE, 100, nullptr);
+            }
+        }
         return 0;
 
     case WM_DESTROY:
+        if (g_app.hDeviceNotify)
+        {
+            UnregisterDeviceNotification(g_app.hDeviceNotify);
+        }
         PostQuitMessage(0);
         return 0;
 
@@ -226,25 +267,28 @@ static void UpdateBatteryStatus()
 {
     LOG(LogLevel::Debug, "Updating battery status");
 
-    if (!g_app.device.IsConnected())
+    if (!g_app.device_manager.IsConnected())
     {
         LOG(LogLevel::Debug, "Device not connected, attempting to find and connect");
-        if (g_app.device.FindAndConnect())
+        if (g_app.device_manager.FindAndConnect())
         {
             LOG(LogLevel::Info, "Device connected successfully");
         }
     }
+    else
+    {
+        g_app.device_manager.ShouldSwitchDevice();
+    }
 
     try
     {
-        const auto status = g_app.device.ReadBattery();
+        const auto status = g_app.device_manager.ReadBattery();
 
         if (status.percentage < 0)
         {
             LOG(LogLevel::Debug, "No device connected or read error - attempting reconnection");
-            // Device might have switched modes (wired/wireless), try to reconnect
-            g_app.device.Disconnect();
-            if (g_app.device.FindAndConnect())
+            g_app.device_manager.Disconnect();
+            if (g_app.device_manager.FindAndConnect())
             {
                 LOG(LogLevel::Info, "Device reconnected after mode switch");
             }
@@ -268,12 +312,12 @@ static void UpdateBatteryStatus()
     catch (const std::exception &ex)
     {
         LOG(LogLevel::Error, "Exception in UpdateBatteryStatus: " + std::string(ex.what()));
-        g_app.device.Disconnect();
+        g_app.device_manager.Disconnect();
     }
     catch (...)
     {
         LOG(LogLevel::Error, "Unknown exception in UpdateBatteryStatus");
-        g_app.device.Disconnect();
+        g_app.device_manager.Disconnect();
     }
 }
 
@@ -317,7 +361,7 @@ static void ShowAboutDialog(HWND hwnd)
 static void CleanupTrayIcon()
 {
     Shell_NotifyIconW(NIM_DELETE, &g_app.nid);
-    g_app.device.Disconnect();
+    g_app.device_manager.Disconnect();
 }
 
 static void WaitForExitIfDebug()
@@ -423,16 +467,16 @@ static HWND CreateMessageWindow(HINSTANCE hInstance)
     return hwnd;
 }
 
-static std::wstring BuildTooltip(const OP1WDevice::BatteryStatus &status)
+static std::wstring BuildTooltip(const DeviceManager::BatteryStatus &status)
 {
     std::wstringstream tooltip;
-    tooltip << L"OP1W\n"
-            << g_app.device.GetConnectionMode() << L"\n"
+    tooltip << g_app.device_manager.GetDeviceName() << L"\n"
+            << g_app.device_manager.GetConnectionMode() << L"\n"
             << L"Battery: " << status.percentage << L"%";
     return tooltip.str();
 }
 
-static void HandleLowBatteryNotification(const OP1WDevice::BatteryStatus &status)
+static void HandleLowBatteryNotification(const DeviceManager::BatteryStatus &status)
 {
     if (!g_app.config.GetShowNotifications() || status.percentage > g_app.config.GetLowBatteryThreshold() || status.percentage <= 0)
     {
@@ -444,7 +488,7 @@ static void HandleLowBatteryNotification(const OP1WDevice::BatteryStatus &status
     if (!notification_shown)
     {
         std::wstringstream title;
-        title << L"Endgame Gear " << g_app.device.GetDeviceName() << L" - Low Battery";
+        title << L"Endgame Gear " << g_app.device_manager.GetDeviceName() << L" - Low Battery";
 
         g_app.nid.uFlags |= NIF_INFO;
         wcscpy_s(g_app.nid.szInfoTitle, title.str().c_str());
@@ -467,13 +511,13 @@ static void TriggerLowBatteryNotification()
 {
     LOG(LogLevel::Info, "Triggering low battery notification");
 
-    const auto status = g_app.device.ReadBattery();
+    const auto status = g_app.device_manager.ReadBattery();
     const int battery_percentage = status.percentage >= 0 ? status.percentage : g_app.config.GetLowBatteryThreshold();
 
     std::wstringstream title;
-    if (g_app.device.IsConnected())
+    if (g_app.device_manager.IsConnected())
     {
-        title << L"Endgame Gear " << g_app.device.GetDeviceName() << L" - Low Battery";
+        title << L"Endgame Gear " << g_app.device_manager.GetDeviceName() << L" - Low Battery";
     }
     else
     {

@@ -50,7 +50,9 @@ Edit `config.ini`:
 
 ## Supported Devices
 
-- Endgame Gear OP1W (VID: 0x3367, PID: 0x1970/0x1972)
+- Endgame Gear Wireless Dongle (VID: 0x3367, PID: 0x1970)
+- Endgame Gear OP1W            (VID: 0x3367, PID: 0x1972)
+- Endgame Gear XM2W v2         (VID: 0x3367, PID: 0x1982)
 
 ## Development
 

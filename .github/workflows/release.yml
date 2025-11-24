@@ -1,0 +1,79 @@
+name: Build and Release
+
+on:
+    push:
+        branches:
+            - main
+
+jobs:
+    build:
+        runs-on: windows-latest
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - name: Setup MinGW
+              uses: msys2/setup-msys2@v2
+              with:
+                  msystem: MINGW64
+                  update: true
+                  install: >-
+                      mingw-w64-x86_64-gcc
+                      mingw-w64-x86_64-make
+                      make
+
+            - name: Build release
+              shell: msys2 {0}
+              run: |
+                  make clean
+                  make
+
+            - name: Get short SHA
+              id: vars
+              shell: bash
+              run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+            - name: Create release archive
+              shell: pwsh
+              run: |
+                  $version = Get-Date -Format "yyyy.MM.dd"
+                  $sha = "${{ steps.vars.outputs.sha_short }}"
+                  $releaseName = "EndgameGearMouseBatteryMonitor-$version-$sha"
+
+                  New-Item -ItemType Directory -Force -Path "release/$releaseName"
+                  Copy-Item "build/release/EndgameGearMouseBatteryMonitor.exe" "release/$releaseName/"
+                  Copy-Item -Recurse "build/release/resources" "release/$releaseName/"
+                  Copy-Item "build/release/config.ini" "release/$releaseName/"
+                  Copy-Item "README.md" "release/$releaseName/"
+                  Copy-Item "LICENSE" "release/$releaseName/"
+                  Copy-Item "ATTRIBUTION.md" "release/$releaseName/"
+
+                  Compress-Archive -Path "release/$releaseName" -DestinationPath "release/$releaseName.zip"
+
+                  echo "RELEASE_NAME=$releaseName" >> $env:GITHUB_ENV
+                  echo "RELEASE_VERSION=$version" >> $env:GITHUB_ENV
+
+            - name: Create Release
+              uses: softprops/action-gh-release@v1
+              with:
+                  tag_name: v${{ env.RELEASE_VERSION }}-${{ steps.vars.outputs.sha_short }}
+                  name: Release ${{ env.RELEASE_VERSION }} (${{ steps.vars.outputs.sha_short }})
+                  body: |
+                      Automated release build
+
+                      **Build Info:**
+                      - Version: ${{ env.RELEASE_VERSION }}
+                      - Commit: ${{ steps.vars.outputs.sha_short }}
+                      - Build Date: ${{ github.event.head_commit.timestamp }}
+
+                      **Changes:**
+                      ${{ github.event.head_commit.message }}
+                  files: |
+                      release/${{ env.RELEASE_NAME }}.zip
+                  draft: false
+                  prerelease: false
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
