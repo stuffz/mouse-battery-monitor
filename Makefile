@@ -4,8 +4,8 @@ CXX = g++
 BUILD_DATE := $(shell date +"%Y-%m-%d %H:%M:%S")
 GIT_HASH := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 CXXFLAGS = -std=c++17 -O2 -Wall -Wextra -Iinclude -v -DBUILD_DATE="\"$(BUILD_DATE)\"" -DGIT_HASH="\"$(GIT_HASH)\""
-LDFLAGS = -static-libgcc -static-libstdc++ -v
-LIBS = -lhid -lsetupapi -lgdi32 -lshell32 -luser32 -lgdiplus
+LDFLAGS = -static -v
+LIBS = -lhid -lsetupapi -lgdi32 -lshell32 -luser32 -lgdiplus -lpthread
 
 SRC_DIR = src
 INC_DIR = include
