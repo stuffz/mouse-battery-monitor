@@ -28,16 +28,16 @@ jobs:
                       mingw-w64-x86_64-make
                       make
 
-            - name: Build release
-              shell: msys2 {0}
-              run: |
-                  make clean
-                  make
-
             - name: Get short SHA
               id: vars
               shell: bash
               run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+            - name: Build release
+              shell: msys2 {0}
+              run: |
+                  make clean
+                  make GIT_HASH=${{ steps.vars.outputs.sha_short }}
 
             - name: Create release archive
               shell: pwsh
