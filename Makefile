@@ -1,14 +1,13 @@
-# Makefile for Endgame Gear Mouse Battery Monitor
+# Makefile for Mouse Battery Monitor
 
 CXX = g++
 BUILD_DATE := $(shell date +"%Y-%m-%d %H:%M:%S")
 GIT_HASH ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
-CXXFLAGS = -std=c++17 -O2 -Wall -Wextra -Iinclude -v -DBUILD_DATE="\"$(BUILD_DATE)\"" -DGIT_HASH="\"$(GIT_HASH)\""
+CXXFLAGS = -std=c++17 -O2 -Wall -Wextra -Isrc -v -DBUILD_DATE="\"$(BUILD_DATE)\"" -DGIT_HASH="\"$(GIT_HASH)\""
 LDFLAGS = -static -v
 LIBS = -lhid -lsetupapi -lgdi32 -lshell32 -luser32 -lgdiplus -lpthread
 
 SRC_DIR = src
-INC_DIR = include
 BUILD_BASE = build
 ifeq ($(DEBUG), 1)
     BUILD_DIR = $(BUILD_BASE)/debug
@@ -19,7 +18,7 @@ endif
 OBJ_DIR = $(BUILD_DIR)/obj
 RESOURCE_DIR = resources
 
-TARGET = $(BUILD_DIR)/EndgameGearMouseBatteryMonitor.exe
+TARGET = $(BUILD_DIR)/MouseBatteryMonitor.exe
 
 SOURCES = $(wildcard $(SRC_DIR)/*.cpp)
 OBJECTS = $(SOURCES:$(SRC_DIR)/%.cpp=$(OBJ_DIR)/%.o)
@@ -69,7 +68,7 @@ run: all
 	$(TARGET)
 
 help:
-	@echo Endgame Gear Mouse Battery Monitor - Build System
+	@echo Mouse Battery Monitor - Build System
 	@echo
 	@echo Targets:
 	@echo "  all        - Clean and build the application (default)"

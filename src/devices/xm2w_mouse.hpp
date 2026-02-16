@@ -1,6 +1,6 @@
 #pragma once
 
-#include "endgame_gear_device.h"
+#include "devices/endgame_gear_device.hpp"
 
 class XM2Wv2Mouse : public EndgameGearDevice
 {
