@@ -1,8 +1,8 @@
-# Endgame Gear Mouse Battery Monitor Configuration
+# Mouse Battery Monitor Configuration
 
-# Update interval in seconds (default: 10 seconds for responsive updates)
+# Update interval in seconds (default: 300 seconds for responsive updates)
 # Can be increased to reduce resource usage (e.g., 60 or 300)
-update_interval_seconds = 10
+update_interval_seconds = 300
 
 # Show notifications for low battery
 show_notifications = true
