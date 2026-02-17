@@ -2,9 +2,8 @@
 
 #include "devices/mouse_device.hpp"
 #include "devices/endgame_gear_device.hpp"
-#include "devices/op1w_mouse.hpp"
-#include "devices/xm2w_mouse.hpp"
-#include "devices/wireless_dongle.hpp"
+#include "devices/endgame_gear_mouse.hpp"
+#include "devices/endgame_gear_dongle.hpp"
 #include "devices/vaxee_device.hpp"
 #include "devices/vaxee_mouse.hpp"
 #include "devices/vaxee_dongle.hpp"
@@ -27,9 +26,8 @@ public:
     DeviceManager()
     {
         // Endgame Gear devices
-        devices.push_back(std::make_unique<OP1WMouse>());
-        devices.push_back(std::make_unique<XM2Wv2Mouse>());
-        devices.push_back(std::make_unique<WirelessDongle>());
+        devices.push_back(std::make_unique<EndgameGearMouse>());
+        devices.push_back(std::make_unique<EndgameGearDongle>());
 
         // VAXEE devices
         devices.push_back(std::make_unique<VaxeeMouse>());
@@ -68,6 +66,11 @@ public:
     bool IsConnected() const
     {
         return activeDevice && activeDevice->IsConnected();
+    }
+
+    bool HasActiveDevice() const
+    {
+        return activeDevice != nullptr;
     }
 
     BatteryStatus ReadBattery()

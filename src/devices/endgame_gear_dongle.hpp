@@ -2,13 +2,13 @@
 
 #include "devices/endgame_gear_device.hpp"
 
-class WirelessDongle : public EndgameGearDevice
+class EndgameGearDongle : public EndgameGearDevice
 {
 public:
     static constexpr USHORT PID_DONGLE = 0x1970;
 
     std::wstring GetDeviceName() const override { return L"Endgame Gear Dongle"; }
-    const char *GetDeviceType() const override { return "WirelessDongle"; }
+    const char *GetDeviceType() const override { return "EndgameGearDongle"; }
     int GetPriority() const override { return 3; }
 
 protected:
