@@ -6,7 +6,6 @@
 #include <filesystem>
 #include "config.hpp"
 #include "logger.hpp"
-#include "debug_console.hpp"
 #include "battery_monitor.hpp"
 #include "ui/icon_loader.hpp"
 #include "ui/tray_icon.hpp"
@@ -25,6 +24,10 @@ public:
         static constexpr UINT ID_TRAY_ICON = 1;
         static constexpr UINT ID_TIMER_UPDATE = 1;
         static constexpr UINT ID_TIMER_DEVICE_CHANGE = 2;
+        static constexpr UINT ID_TIMER_ARRIVAL_RETRY = 3;
+        static constexpr int ARRIVAL_DEBOUNCE_MS = 1500;
+        static constexpr int ARRIVAL_RETRY_MS = 3000;
+        static constexpr int MAX_ARRIVAL_RETRIES = 3;
         static constexpr UINT ID_MENU_UPDATE = 1001;
         static constexpr UINT ID_MENU_TRIGGER_LOW_BATTERY = 1002;
         static constexpr UINT ID_MENU_ABOUT = 1003;
@@ -52,10 +55,7 @@ public:
         this->hInstance = hInstance;
 
         if (!initialize(wndProc))
-        {
-            debugConsole.waitForExit();
             return 1;
-        }
 
         int result = messageLoop();
         shutdown();
@@ -96,8 +96,58 @@ public:
         else if (timerId == Constants::ID_TIMER_DEVICE_CHANGE)
         {
             window.killTimer(Constants::ID_TIMER_DEVICE_CHANGE);
-            LOG_DEBUG("Device change detected - checking for device updates");
+
+            if (pendingDeviceEvent == DBT_DEVICEREMOVECOMPLETE)
+            {
+                LOG_DEBUG("Device change timer fired - USB REMOVAL event");
+                arrivalRetryCount = 0;
+                window.killTimer(Constants::ID_TIMER_ARRIVAL_RETRY);
+                batteryMonitor.onDeviceRemoved();
+            }
+            else if (pendingDeviceEvent == DBT_DEVICEARRIVAL)
+            {
+                LOG_DEBUG("Device change timer fired - USB ARRIVAL event");
+                arrivalRetryCount = 0;
+                batteryMonitor.onDeviceArrived();
+
+                if (!batteryMonitor.hasValidStatus())
+                {
+                    LOG_DEBUG("First arrival read failed - scheduling retry in " +
+                              std::to_string(Constants::ARRIVAL_RETRY_MS) + "ms");
+                    window.setDeviceChangeTimer(Constants::ID_TIMER_ARRIVAL_RETRY,
+                                                Constants::ARRIVAL_RETRY_MS);
+                }
+            }
+            else
+            {
+                LOG_DEBUG("Device change timer fired - generic update");
+                batteryMonitor.update();
+            }
+
+            pendingDeviceEvent = 0;
+        }
+        else if (timerId == Constants::ID_TIMER_ARRIVAL_RETRY)
+        {
+            arrivalRetryCount++;
+            LOG_DEBUG("Arrival retry " + std::to_string(arrivalRetryCount) +
+                      "/" + std::to_string(Constants::MAX_ARRIVAL_RETRIES));
+
             batteryMonitor.update();
+
+            if (batteryMonitor.hasValidStatus() ||
+                arrivalRetryCount >= Constants::MAX_ARRIVAL_RETRIES)
+            {
+                window.killTimer(Constants::ID_TIMER_ARRIVAL_RETRY);
+                if (batteryMonitor.hasValidStatus())
+                {
+                    LOG_DEBUG("Arrival retry succeeded - battery status acquired");
+                }
+                else
+                {
+                    LOG_DEBUG("Arrival retries exhausted - giving up");
+                }
+                arrivalRetryCount = 0;
+            }
         }
     }
 
@@ -108,7 +158,14 @@ public:
             PDEV_BROADCAST_HDR hdr = reinterpret_cast<PDEV_BROADCAST_HDR>(lParam);
             if (hdr && hdr->dbch_devicetype == DBT_DEVTYP_DEVICEINTERFACE)
             {
-                window.setDeviceChangeTimer(Constants::ID_TIMER_DEVICE_CHANGE, 100);
+                pendingDeviceEvent = wParam;
+                LOG_DEBUG(string("USB event received: ") +
+                          (wParam == DBT_DEVICEARRIVAL ? "DEVICE_ARRIVAL" : "DEVICE_REMOVE_COMPLETE"));
+
+                int debounceMs = (wParam == DBT_DEVICEARRIVAL)
+                                     ? Constants::ARRIVAL_DEBOUNCE_MS
+                                     : 100;
+                window.setDeviceChangeTimer(Constants::ID_TIMER_DEVICE_CHANGE, debounceMs);
             }
         }
     }
@@ -134,13 +191,14 @@ private:
 
     HINSTANCE hInstance = nullptr;
     Config config;
-    DebugConsole debugConsole;
     IconLoader iconLoader;
     TrayIcon trayIcon;
     NotificationManager notificationManager;
     AppWindow window;
     BatteryMonitor batteryMonitor;
     UINT taskbarCreatedMsg = 0;
+    WPARAM pendingDeviceEvent = 0;
+    int arrivalRetryCount = 0;
 
     bool initialize(WNDPROC wndProc)
     {
@@ -149,9 +207,6 @@ private:
 
         if (!loadConfig())
             return false;
-
-        if (config.GetDebugMode())
-            debugConsole.attach();
 
         LOG_INFO("Starting Mouse Battery Monitor");
 
@@ -276,6 +331,5 @@ private:
         trayIcon.remove();
         batteryMonitor.devices().Disconnect();
         LOG_INFO("Shutting down");
-        debugConsole.waitForExit();
     }
 };
