@@ -111,7 +111,6 @@ public:
                 }
 
                 status = ParseBatteryResponse(readBuffer[16]);
-                lastStatus = status;
                 LOG_DEBUG(string(GetDeviceType()) + ": Success - Battery " +
                           std::to_string(status.percentage) + "%");
                 return status;
@@ -141,10 +140,8 @@ public:
         return IsWiredPID(currentPid) ? L"Wired (Charging)" : L"Wireless";
     }
 
-    USHORT GetCurrentPID() const { return currentPid; }
-
 protected:
-    EndgameGearDevice() : currentPid(0), lastStatus{} {}
+    EndgameGearDevice() : currentPid(0) {}
 
     virtual vector<USHORT> GetSupportedPIDs() const = 0;
     virtual bool IsWiredPID(USHORT pid) const = 0;
@@ -179,12 +176,10 @@ protected:
     {
         BatteryStatus status;
         status.percentage = (std::min)(static_cast<int>(batteryValue), 100);
-        status.isWireless = !IsWiredPID(currentPid);
         status.isCharging = IsWiredPID(currentPid);
         return status;
     }
 
     HIDDevice device;
     USHORT currentPid;
-    BatteryStatus lastStatus;
 };

@@ -18,11 +18,6 @@ public:
         items.push_back({0, nullptr, true, true});
     }
 
-    void clear()
-    {
-        items.clear();
-    }
-
     void show(HWND hwnd)
     {
         POINT pt;
