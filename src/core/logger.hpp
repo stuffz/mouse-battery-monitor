@@ -10,8 +10,6 @@
 #include <chrono>
 #include <array>
 
-using std::chrono::system_clock;
-
 enum class LogLevel
 {
     Info,

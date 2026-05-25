@@ -21,8 +21,6 @@ using std::wstring;
 struct DeviceInfo
 {
     wstring path;
-    USHORT vid;
-    USHORT pid;
     USHORT usagePage;
     USHORT usage;
 };
@@ -30,7 +28,7 @@ struct DeviceInfo
 class HIDDevice
 {
 public:
-    HIDDevice() : deviceHandle(INVALID_HANDLE_VALUE), vid(0), pid(0) {}
+    HIDDevice() : deviceHandle(INVALID_HANDLE_VALUE) {}
 
     ~HIDDevice()
     {
@@ -94,14 +92,6 @@ public:
             return false;
         }
 
-        HIDD_ATTRIBUTES attrib;
-        attrib.Size = sizeof(HIDD_ATTRIBUTES);
-        if (HidD_GetAttributes(deviceHandle, &attrib))
-        {
-            vid = attrib.VendorID;
-            pid = attrib.ProductID;
-        }
-
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
         return true;
@@ -134,13 +124,8 @@ public:
         return HidD_GetFeature(deviceHandle, buffer, size) == TRUE;
     }
 
-    USHORT GetVID() const { return vid; }
-    USHORT GetPID() const { return pid; }
-
 private:
     HANDLE deviceHandle;
-    USHORT vid;
-    USHORT pid;
 
     static std::optional<DeviceInfo> GetDeviceInfo(HDEVINFO deviceInfoSet,
                                                    SP_DEVICE_INTERFACE_DATA &interfaceData,
@@ -194,6 +179,6 @@ private:
             return std::nullopt;
         }
 
-        return DeviceInfo{path, attrib.VendorID, attrib.ProductID, caps.UsagePage, caps.Usage};
+        return DeviceInfo{path, caps.UsagePage, caps.Usage};
     }
 };

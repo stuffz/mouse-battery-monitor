@@ -68,11 +68,6 @@ public:
         return activeDevice && activeDevice->IsConnected();
     }
 
-    bool HasActiveDevice() const
-    {
-        return activeDevice != nullptr;
-    }
-
     BatteryStatus ReadBattery()
     {
         if (!activeDevice)

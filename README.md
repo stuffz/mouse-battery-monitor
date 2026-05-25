@@ -14,7 +14,7 @@ System tray battery monitor for Endgame Gear and VAXEE wireless mice.
 - Minimal resource usage
 
 ## Prerequisites
-<>
+
 ### Installing Tools with Scoop
 
 If you don't have the build tools installed, you can use [Scoop](https://scoop.sh/) to install them:

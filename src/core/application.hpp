@@ -181,9 +181,6 @@ public:
         trayIcon.reAdd();
     }
 
-    // Accessors
-    Config &getConfig() { return config; }
-    AppWindow &getWindow() { return window; }
     UINT getTaskbarCreatedMsg() const { return taskbarCreatedMsg; }
 
 private:

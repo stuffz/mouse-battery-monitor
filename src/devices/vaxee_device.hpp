@@ -130,8 +130,6 @@ public:
                 BatteryStatus status;
                 status.percentage = batteryLevel;
                 status.isCharging = isCharging;
-                status.isWireless = IsDonglePID(currentPid);
-
                 LOG_DEBUG(string(GetDeviceType()) + ": Success - Battery " +
                           std::to_string(status.percentage) + "%, Charging: " +
                           (status.isCharging ? "Yes" : "No"));
@@ -161,8 +159,6 @@ public:
             return L"Unknown";
         return IsDonglePID(currentPid) ? L"Wireless" : L"Wired (Charging)";
     }
-
-    USHORT GetCurrentPID() const { return currentPid; }
 
 protected:
     VaxeeDevice() : currentPid(0) {}
