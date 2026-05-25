@@ -30,7 +30,19 @@ public:
 
     void checkLowBattery(int percentage, bool charging, const wstring &deviceName)
     {
-        if (!enabled || !trayIcon || percentage > threshold || percentage <= 0 || charging)
+        if (!enabled || !trayIcon || percentage <= 0)
+        {
+            return;
+        }
+
+        // Reset notification flag when battery recovers above threshold + hysteresis
+        if (percentage > threshold + 5)
+        {
+            notificationShown = false;
+            return;
+        }
+
+        if (percentage > threshold || charging)
         {
             return;
         }
@@ -46,11 +58,6 @@ public:
             trayIcon->showNotification(title.str(), msg.str());
             notificationShown = true;
             LOG_INFO("Low battery notification shown");
-        }
-
-        if (percentage > threshold + 5)
-        {
-            notificationShown = false;
         }
     }
 
@@ -77,11 +84,6 @@ public:
         msg << L"Battery at " << percentage << L"%";
 
         trayIcon->showNotification(title.str(), msg.str());
-    }
-
-    void reset()
-    {
-        notificationShown = false;
     }
 
 private:

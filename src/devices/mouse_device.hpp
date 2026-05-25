@@ -9,7 +9,6 @@ public:
     {
         int percentage{-1};
         bool isCharging{false};
-        bool isWireless{false};
     };
 
     virtual ~MouseDevice() = default;

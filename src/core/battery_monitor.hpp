@@ -24,70 +24,76 @@ public:
         notificationMgr = notifications;
     }
 
+    // Main polling loop entry point.
     void update()
     {
-        LOG_DEBUG("Updating battery status");
-
-        ensureConnected();
-
         try
         {
-            auto status = deviceManager.ReadBattery();
-
-            if (status.percentage < 0)
+            if (!deviceManager.IsConnected())
             {
-                handleReadFailure();
+                if (deviceManager.FindAndConnect())
+                {
+                    LOG_INFO("Device connected successfully");
+                }
+                else
+                {
+                    handleDisconnected();
+                    return;
+                }
             }
             else
             {
-                consecutiveFailures = 0;
-                handleConnected(status);
+                deviceManager.ShouldSwitchDevice();
+            }
+
+            auto status = deviceManager.ReadBattery();
+
+            if (status.percentage >= 0)
+            {
+                handleValidRead(status);
+            }
+            else if (deviceManager.IsConnected())
+            {
+                // Handle still open, but read failed -> mouse is sleeping.
+                // Keep cached status to avoid UI flicker.
+                LOG_DEBUG("Read failed - mouse appears to be sleeping");
+            }
+            else
+            {
+                handleDisconnected();
             }
         }
         catch (const std::exception &ex)
         {
-            LOG_ERROR("Exception in BatteryMonitor::update: " + string(ex.what()));
-            handleReadFailure();
-        }
-        catch (...)
-        {
-            LOG_ERROR("Unknown exception in BatteryMonitor::update");
-            handleReadFailure();
+            LOG_ERROR("Exception during battery update: " + string(ex.what()));
+            deviceManager.Disconnect();
+            handleDisconnected();
         }
     }
 
-    // Called from Application when a real USB DBT_DEVICEREMOVECOMPLETE event fires
     void onDeviceRemoved()
     {
-        LOG_INFO("USB device removal event - forcing disconnect");
-        consecutiveFailures = 0;
-        lastKnownStatus = {};
-        lastKnownDeviceName.clear();
-        lastKnownConnectionMode.clear();
+        LOG_INFO("USB removal detected");
         deviceManager.Disconnect();
+        handleDisconnected();
+    }
 
-        if (trayIcon && iconLoader)
-        {
-            trayIcon->update(iconLoader->GetDisconnectedIcon(),
-                             L"Mouse Battery Monitor\nNo device connected");
-        }
+    void onDeviceArrived()
+    {
+        LOG_INFO("USB arrival detected");
+        update();
     }
 
     bool hasValidStatus() const
     {
-        return lastKnownStatus.percentage >= 0;
-    }
-
-    // Called from Application when a real USB DBT_DEVICEARRIVAL event fires
-    void onDeviceArrived()
-    {
-        LOG_INFO("USB device arrival event - attempting connection");
-        consecutiveFailures = 0;
-        update();
+        return cachedStatus.percentage >= 0;
     }
 
     void triggerTestNotification(int fallbackPercentage)
     {
+        if (!notificationMgr)
+            return;
+
         auto status = deviceManager.ReadBattery();
         int percentage = status.percentage >= 0 ? status.percentage : fallbackPercentage;
         wstring name = deviceManager.IsConnected() ? deviceManager.GetDeviceName() : L"";
@@ -95,7 +101,6 @@ public:
     }
 
     DeviceManager &devices() { return deviceManager; }
-    const DeviceManager &devices() const { return deviceManager; }
 
 private:
     DeviceManager deviceManager;
@@ -103,71 +108,34 @@ private:
     IconLoader *iconLoader = nullptr;
     NotificationManager *notificationMgr = nullptr;
 
-    // Cached last good state for sleep tolerance
-    DeviceManager::BatteryStatus lastKnownStatus{};
-    wstring lastKnownDeviceName;
-    wstring lastKnownConnectionMode;
-    int consecutiveFailures = 0;
+    DeviceManager::BatteryStatus cachedStatus{};
+    wstring cachedDeviceName;
+    wstring cachedConnectionMode;
 
-    void ensureConnected()
+    void handleValidRead(const DeviceManager::BatteryStatus &status)
     {
-        if (!deviceManager.IsConnected())
+        LOG_DEBUG("Battery: " + std::to_string(status.percentage) + "%, Charging: " +
+                  (status.isCharging ? "Yes" : "No"));
+
+        cachedStatus = status;
+        cachedDeviceName = deviceManager.GetDeviceName();
+        cachedConnectionMode = deviceManager.GetConnectionMode();
+
+        updateTray();
+
+        if (notificationMgr)
         {
-            LOG_DEBUG("Device not connected, attempting to find and connect");
-            if (deviceManager.FindAndConnect())
-            {
-                LOG_INFO("Device connected successfully");
-            }
-        }
-        else
-        {
-            deviceManager.ShouldSwitchDevice();
-        }
-    }
-
-    void handleReadFailure()
-    {
-        consecutiveFailures++;
-        LOG_DEBUG("Battery read failed (consecutive failures: " +
-                  std::to_string(consecutiveFailures) + ")");
-
-        // Check if the dongle/device handle is still open
-        bool donglePresent = deviceManager.IsConnected();
-        bool hasLastKnown = lastKnownStatus.percentage >= 0;
-
-        LOG_DEBUG("Dongle still present: " + string(donglePresent ? "Yes" : "No") +
-                  ", Has cached battery: " + string(hasLastKnown ? "Yes" : "No") +
-                  (hasLastKnown ? " (" + std::to_string(lastKnownStatus.percentage) + "%)" : ""));
-
-        if (donglePresent && hasLastKnown)
-        {
-            // Dongle handle is still valid but mouse isn't responding - likely sleeping
-            LOG_DEBUG("Mouse appears to be sleeping - keeping last known battery: " +
-                      std::to_string(lastKnownStatus.percentage) + "%");
-        }
-        else
-        {
-            // No dongle or never had a good read - try reconnection
-            LOG_DEBUG("No dongle handle or no cached status - attempting reconnection");
-            deviceManager.Disconnect();
-
-            if (deviceManager.FindAndConnect())
-            {
-                LOG_INFO("Device reconnected after mode switch");
-            }
-            else
-            {
-                handleDisconnected();
-            }
+            notificationMgr->checkLowBattery(status.percentage,
+                                             status.isCharging,
+                                             cachedDeviceName);
         }
     }
 
     void handleDisconnected()
     {
-        LOG_DEBUG("Device fully disconnected - showing disconnected icon");
-        lastKnownStatus = {};
-        lastKnownDeviceName.clear();
-        lastKnownConnectionMode.clear();
+        cachedStatus = {};
+        cachedDeviceName.clear();
+        cachedConnectionMode.clear();
 
         if (trayIcon && iconLoader)
         {
@@ -176,48 +144,22 @@ private:
         }
     }
 
-    void handleConnected(const DeviceManager::BatteryStatus &status)
-    {
-        LOG_DEBUG("Battery: " + std::to_string(status.percentage) + "%, Charging: " +
-                  (status.isCharging ? "Yes" : "No"));
-
-        // Cache the good reading
-        lastKnownStatus = status;
-        lastKnownDeviceName = deviceManager.GetDeviceName();
-        lastKnownConnectionMode = deviceManager.GetConnectionMode();
-
-        updateTray();
-
-        if (notificationMgr)
-        {
-            notificationMgr->checkLowBattery(status.percentage, status.isCharging,
-                                             deviceManager.GetDeviceName());
-        }
-    }
-
     void updateTray()
     {
-        if (!trayIcon || !iconLoader)
+        if (!trayIcon || !iconLoader || cachedStatus.percentage < 0)
             return;
-
-        if (lastKnownStatus.percentage < 0)
-        {
-            trayIcon->update(iconLoader->GetDisconnectedIcon(),
-                             L"Mouse Battery Monitor\nNo device connected");
-            return;
-        }
 
         trayIcon->update(
-            iconLoader->GetBatteryIcon(lastKnownStatus.percentage, lastKnownStatus.isCharging),
+            iconLoader->GetBatteryIcon(cachedStatus.percentage, cachedStatus.isCharging),
             buildTooltip());
     }
 
-    wstring buildTooltip()
+    wstring buildTooltip() const
     {
         wstringstream ss;
-        ss << lastKnownDeviceName << L"\n"
-           << lastKnownConnectionMode << L"\n"
-           << L"Battery: " << lastKnownStatus.percentage << L"%";
+        ss << cachedDeviceName << L"\n"
+           << cachedConnectionMode << L"\n"
+           << L"Battery: " << cachedStatus.percentage << L"%";
         return ss.str();
     }
 };
