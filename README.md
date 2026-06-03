@@ -57,6 +57,7 @@ Edit `config.ini`:
 
 | Device             | VID    | PID    | Connection |
 | ------------------ | ------ | ------ | ---------- |
+| XM2we 4K V1        | 0x3367 | 0x1968 | Wired USB  |
 | Wireless Dongle    | 0x3367 | 0x1970 | Wireless   |
 | OP1W               | 0x3367 | 0x1972 | Wired USB  |
 | XM2W v2            | 0x3367 | 0x1982 | Wired USB  |
