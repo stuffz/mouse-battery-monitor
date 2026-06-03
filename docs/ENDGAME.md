@@ -16,9 +16,10 @@ Endgame Gear wireless mice use HID feature reports to communicate battery status
 
 | Device                    | PID    | Connection |
 | ------------------------- | ------ | ---------- |
+| Endgame Gear XM2we 4K V1  | 0x1968 | Wired USB  |
+| Endgame Gear Dongle       | 0x1970 | Wireless   |
 | Endgame Gear OP1W         | 0x1972 | Wired USB  |
 | Endgame Gear XM2W v2      | 0x1982 | Wired USB  |
-| Endgame Gear Dongle       | 0x1970 | Wireless   |
 
 When a mouse is connected via USB cable, it is detected by its wired PID. When using wireless mode, communication goes through the dongle PID (0x1970).
 
