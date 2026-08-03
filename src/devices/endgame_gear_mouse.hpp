@@ -17,7 +17,7 @@ protected:
     std::vector<USHORT> GetSupportedPIDs() const override
     {
         return {
-            0x1968, // XM2we 4K V1
+            0x1968, // XM2w 4K V1
             0x1972, // OP1W
             0x1982, // XM2W v2
         };
@@ -34,7 +34,7 @@ private:
         switch (pid)
         {
         case 0x1968:
-            return L"XM2we 4K V1";
+            return L"XM2w 4K V1";
         case 0x1972:
             return L"OP1W";
         case 0x1982:
