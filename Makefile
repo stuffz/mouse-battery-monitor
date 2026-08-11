@@ -165,8 +165,10 @@ ifeq ($(PLATFORM),windows)
 	echo "lint is only supported on Linux."
 else
 	@command -v clang-tidy >/dev/null || { echo "clang-tidy not found (Arch: clang)"; exit 1; }
-	clang-tidy --warnings-as-errors='*' $(SOURCES) $(LINT_HEADERS) -- \
+	@printf '%s\n' $(SOURCES) $(LINT_HEADERS) | xargs -P $$(nproc) -I{} \
+		clang-tidy --quiet --warnings-as-errors='*' {} -- \
 		-xc++ -Wno-pragma-once-outside-header $(CXXFLAGS)
+	@echo "clang-tidy clean ($(words $(SOURCES) $(LINT_HEADERS)) files)"
 	@if command -v cppcheck >/dev/null; then \
 		cppcheck --quiet --enable=warning,performance,portability --inline-suppr \
 			--suppress=missingIncludeSystem --error-exitcode=1 \
