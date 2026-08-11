@@ -1,7 +1,7 @@
 #pragma once
 
-#include <windows.h>
 #include <vector>
+#include <windows.h>
 
 class ContextMenu
 {
@@ -13,10 +13,7 @@ public:
         items.push_back({id, label, visible, false});
     }
 
-    void addSeparator()
-    {
-        items.push_back({0, nullptr, true, true});
-    }
+    void addSeparator() { items.push_back({0, nullptr, true, true}); }
 
     void show(HWND hwnd)
     {
@@ -42,10 +39,10 @@ public:
 private:
     struct MenuItem
     {
-        UINT id;
-        const wchar_t *label;
-        bool visible;
-        bool separator;
+        UINT id = 0;
+        const wchar_t *label = nullptr;
+        bool visible = true;
+        bool separator = false;
     };
 
     std::vector<MenuItem> items;

@@ -1,41 +1,42 @@
 #pragma once
 
-#include <windows.h>
-#include <string>
-#include <array>
-#include <memory>
-#include <gdiplus.h>
 #include "core/logger.hpp"
+#include "ui/icon_backend.hpp"
 
-using std::wstring;
-using std::string;
+#include <algorithm>
+#include <array>
+#include <filesystem>
+#include <string>
 
 class IconLoader
 {
 public:
-    IconLoader() : disconnectedIcon(nullptr), gdiplusToken(0)
-    {
-        batteryIcons.fill(nullptr);
-        chargingIcons.fill(nullptr);
-        InitializeGdiPlus();
-    }
+    IconLoader() = default;
 
-    ~IconLoader()
-    {
-        CleanupIcons();
-        ShutdownGdiPlus();
-    }
+    ~IconLoader() { Clear(); }
 
-    IconLoader(const IconLoader&) = delete;
-    IconLoader& operator=(const IconLoader&) = delete;
+    IconLoader(const IconLoader &) = delete;
+    IconLoader &operator=(const IconLoader &) = delete;
 
-    bool LoadIcons(const wstring& resourcePath)
+    bool LoadIcons(const std::filesystem::path &resourcePath)
     {
-        LOG_DEBUG("Loading icons from: " + WStringToString(resourcePath));
+        LOG_DEBUG("Loading icons from: " + resourcePath.u8string());
 
         bool allLoaded = true;
-        allLoaded &= LoadBatteryAndChargingIcons(resourcePath);
-        allLoaded &= LoadDisconnectedIcon(resourcePath);
+
+        for (int i = 0; i < NUM_LEVELS; ++i)
+        {
+            const int percentage = i * 10;
+
+            allLoaded &= LoadLevel(resourcePath, "battery", percentage, batteryIcons[i]);
+            allLoaded &= LoadLevel(resourcePath, "charging", percentage, chargingIcons[i]);
+        }
+
+        if (!Load(resourcePath / "disconnected.png", disconnectedIcon))
+        {
+            LOG_ERROR("Missing or invalid disconnected icon");
+            allLoaded = false;
+        }
 
         if (!allLoaded)
         {
@@ -47,7 +48,7 @@ public:
         return true;
     }
 
-    HICON GetBatteryIcon(int percentage, bool isCharging) const
+    const NativeIcon &GetBatteryIcon(int percentage, bool isCharging) const
     {
         if (percentage < 0)
         {
@@ -58,112 +59,57 @@ public:
         return isCharging ? chargingIcons[index] : batteryIcons[index];
     }
 
-    HICON GetDisconnectedIcon() const
+    const NativeIcon &GetDisconnectedIcon() const { return disconnectedIcon; }
+
+    void Clear()
     {
-        return disconnectedIcon;
+        for (auto &icon : batteryIcons)
+        {
+            IconBackend::Destroy(icon);
+        }
+
+        for (auto &icon : chargingIcons)
+        {
+            IconBackend::Destroy(icon);
+        }
+
+        IconBackend::Destroy(disconnectedIcon);
     }
 
 private:
     static constexpr int NUM_LEVELS = 11;
 
-    std::array<HICON, NUM_LEVELS> batteryIcons;
-    std::array<HICON, NUM_LEVELS> chargingIcons;
-    HICON disconnectedIcon;
-    ULONG_PTR gdiplusToken;
+    // Declared before the icons so it is destroyed after them: on Windows the
+    // handles must be released while GDI+ is still initialised.
+    IconBackend backend;
 
-    void InitializeGdiPlus()
-    {
-        Gdiplus::GdiplusStartupInput gdiplusStartupInput;
-        Gdiplus::GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, nullptr);
-    }
+    std::array<NativeIcon, NUM_LEVELS> batteryIcons{};
+    std::array<NativeIcon, NUM_LEVELS> chargingIcons{};
+    NativeIcon disconnectedIcon{};
 
-    void ShutdownGdiPlus()
+    bool LoadLevel(const std::filesystem::path &resourcePath, const std::string &iconType,
+                   int percentage, NativeIcon &target)
     {
-        if (gdiplusToken)
+        const auto path = resourcePath / (iconType + "_" + std::to_string(percentage) + ".png");
+
+        if (!Load(path, target))
         {
-            Gdiplus::GdiplusShutdown(gdiplusToken);
-        }
-    }
-
-    bool LoadBatteryAndChargingIcons(const wstring& resourcePath)
-    {
-        bool allLoaded = true;
-
-        for (int i = 0; i < NUM_LEVELS; ++i)
-        {
-            const int percentage = i * 10;
-
-            batteryIcons[i] = LoadIconFromPNG(BuildIconPath(resourcePath, L"battery", percentage));
-            if (!batteryIcons[i])
-            {
-                LOG_ERROR("Missing or invalid battery icon: " + std::to_string(percentage) + "%");
-                allLoaded = false;
-            }
-
-            chargingIcons[i] = LoadIconFromPNG(BuildIconPath(resourcePath, L"charging", percentage));
-            if (!chargingIcons[i])
-            {
-                LOG_ERROR("Missing or invalid charging icon: " + std::to_string(percentage) + "%");
-                allLoaded = false;
-            }
-        }
-
-        return allLoaded;
-    }
-
-    bool LoadDisconnectedIcon(const wstring& resourcePath)
-    {
-        disconnectedIcon = LoadIconFromPNG(resourcePath + L"\\disconnected.png");
-        if (!disconnectedIcon)
-        {
-            LOG_ERROR("Missing or invalid disconnected icon");
+            LOG_ERROR("Missing or invalid " + iconType + " icon: " + std::to_string(percentage) +
+                      "%");
             return false;
         }
+
         return true;
     }
 
-    static wstring BuildIconPath(const wstring& basePath, const wstring& iconType, int percentage)
+    bool Load(const std::filesystem::path &path, NativeIcon &target)
     {
-        return basePath + L"\\" + iconType + L"_" + std::to_wstring(percentage) + L".png";
-    }
-
-    HICON LoadIconFromPNG(const wstring& filename)
-    {
-        std::unique_ptr<Gdiplus::Bitmap> bitmap(new Gdiplus::Bitmap(filename.c_str()));
-
-        if (bitmap->GetLastStatus() != Gdiplus::Ok)
+        if (!backend.Load(path, target))
         {
-            LOG_ERROR("Failed to load icon: " + WStringToString(filename));
-            return nullptr;
+            LOG_ERROR("Failed to load icon: " + path.u8string());
+            return false;
         }
 
-        HICON icon = nullptr;
-        bitmap->GetHICON(&icon);
-        return icon;
-    }
-
-    void CleanupIcons()
-    {
-        for (HICON icon : batteryIcons)
-        {
-            if (icon)
-                DestroyIcon(icon);
-        }
-
-        for (HICON icon : chargingIcons)
-        {
-            if (icon)
-                DestroyIcon(icon);
-        }
-
-        if (disconnectedIcon)
-        {
-            DestroyIcon(disconnectedIcon);
-        }
-    }
-
-    static string WStringToString(const wstring& wstr)
-    {
-        return string(wstr.begin(), wstr.end());
+        return true;
     }
 };

@@ -1,22 +1,17 @@
 #pragma once
 
-#include <string>
 #include <fstream>
-#include <optional>
-#include <unordered_map>
 #include <functional>
-
-using std::string;
+#include <optional>
+#include <string>
+#include <unordered_map>
 
 class Config
 {
 public:
-    Config() : updateIntervalSeconds(300),
-               showNotifications(true),
-               lowBatteryThreshold(20),
-               debugMode(false) {}
+    Config() = default;
 
-    bool Load(const string &filename)
+    bool Load(const std::string &filename)
     {
         std::ifstream file(filename);
         if (!file.is_open())
@@ -24,20 +19,19 @@ public:
             return false;
         }
 
-        std::unordered_map<string, std::function<void(const string &)>> handlers = {
-            {"update_interval_seconds", [this](const string &v)
-             { updateIntervalSeconds = std::stoi(v); }},
+        const std::unordered_map<std::string, std::function<void(const std::string &)>> handlers = {
+            {"update_interval_seconds",
+             [this](const std::string &v) { updateIntervalSeconds = std::stoi(v); }},
 
-            {"show_notifications", [this](const string &v)
-             { showNotifications = ParseBool(v); }},
+            {"show_notifications",
+             [this](const std::string &v) { showNotifications = ParseBool(v); }},
 
-            {"low_battery_threshold", [this](const string &v)
-             { lowBatteryThreshold = std::stoi(v); }},
+            {"low_battery_threshold",
+             [this](const std::string &v) { lowBatteryThreshold = std::stoi(v); }},
 
-            {"debug_mode", [this](const string &v)
-             { debugMode = ParseBool(v); }}};
+            {"debug_mode", [this](const std::string &v) { debugMode = ParseBool(v); }}};
 
-        string line;
+        std::string line;
         while (std::getline(file, line))
         {
             if (auto kv = ParseLine(line))
@@ -59,26 +53,23 @@ public:
     bool GetDebugMode() const { return debugMode; }
 
 private:
-    int updateIntervalSeconds;
-    bool showNotifications;
-    int lowBatteryThreshold;
-    bool debugMode;
+    int updateIntervalSeconds = 300;
+    bool showNotifications = true;
+    int lowBatteryThreshold = 20;
+    bool debugMode = false;
 
     struct KeyValue
     {
-        string first;
-        string second;
+        std::string first;
+        std::string second;
     };
 
-    static bool ParseBool(const string &value)
-    {
-        return value == "true" || value == "1";
-    }
+    static bool ParseBool(const std::string &value) { return value == "true" || value == "1"; }
 
-    static string Trim(const string &str)
+    static std::string Trim(const std::string &str)
     {
         const auto start = str.find_first_not_of(" \t");
-        if (start == string::npos)
+        if (start == std::string::npos)
         {
             return "";
         }
@@ -86,15 +77,15 @@ private:
         return str.substr(start, end - start + 1);
     }
 
-    static std::optional<KeyValue> ParseLine(const string &line)
+    static std::optional<KeyValue> ParseLine(const std::string &line)
     {
         if (line.empty() || line[0] == '#' || line[0] == ';')
         {
             return std::nullopt;
         }
 
-        size_t pos = line.find('=');
-        if (pos == string::npos)
+        const auto pos = line.find('=');
+        if (pos == std::string::npos)
         {
             return std::nullopt;
         }

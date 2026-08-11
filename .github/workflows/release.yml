@@ -9,8 +9,34 @@ permissions:
     contents: write
 
 jobs:
-    build:
+    checks:
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Install build dependencies
+              run: |
+                  sudo apt-get update
+                  sudo apt-get install -y build-essential qt6-base-dev libudev-dev \
+                      clang-format clang-tidy cppcheck
+
+            - name: Check formatting
+              run: make format-check
+
+            - name: Build
+              run: make GIT_HASH=$(git rev-parse --short HEAD)
+
+            - name: Lint
+              run: make lint
+
+            - name: Smoke test
+              run: ./build/release/mouse-battery-monitor --version
+
+    release:
         runs-on: windows-latest
+        needs: checks
 
         steps:
             - name: Checkout code

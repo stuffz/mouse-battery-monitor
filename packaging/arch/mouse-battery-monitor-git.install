@@ -1,0 +1,24 @@
+post_install() {
+    cat <<'MSG'
+Mouse Battery Monitor installed.
+
+  Start it now:       systemctl --user enable --now mouse-battery-monitor.service
+  One-off reading:    mouse-battery-monitor --once
+
+Device access is granted by a udev rule that tags the mouse with "uaccess".
+Already-connected devices keep their old permissions, so either replug the
+dongle or run:
+
+  sudo udevadm trigger --subsystem-match=hidraw --action=change
+
+Optional config (defaults are used if absent):
+
+  install -Dm644 /usr/share/mouse-battery-monitor/config.ini.example \
+      ~/.config/mouse-battery-monitor/config.ini
+MSG
+}
+
+post_upgrade() {
+    echo "Restart the tray icon to pick up the new build:"
+    echo "  systemctl --user restart mouse-battery-monitor.service"
+}

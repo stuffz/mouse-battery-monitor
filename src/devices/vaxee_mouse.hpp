@@ -1,14 +1,14 @@
 #pragma once
 
 #include "devices/vaxee_device.hpp"
+#include "platform/platform.hpp"
+#include <string>
+#include <vector>
 
 class VaxeeMouse : public VaxeeDevice
 {
 public:
-    std::wstring GetDeviceName() const override
-    {
-        return GetNameForPID(currentPid);
-    }
+    std::wstring GetDeviceName() const override { return GetNameForPID(currentPid); }
 
     const char *GetDeviceType() const override { return "VaxeeMouse"; }
     int GetPriority() const override { return 4; }
@@ -31,10 +31,7 @@ protected:
         };
     }
 
-    bool IsDonglePID(USHORT) const override
-    {
-        return false;
-    }
+    bool IsDonglePID(USHORT) const override { return false; }
 
 private:
     static std::wstring GetNameForPID(USHORT pid)

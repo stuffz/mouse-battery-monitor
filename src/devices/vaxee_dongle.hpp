@@ -1,6 +1,9 @@
 #pragma once
 
 #include "devices/vaxee_device.hpp"
+#include "platform/platform.hpp"
+#include <string>
+#include <vector>
 
 class VaxeeDongle : public VaxeeDevice
 {
@@ -10,10 +13,7 @@ public:
     static constexpr USHORT PID_DONGLE_3 = 0x0005;
     static constexpr USHORT PID_DONGLE_4K = 0x2001;
 
-    std::wstring GetDeviceName() const override
-    {
-        return GetNameForPID(currentPid);
-    }
+    std::wstring GetDeviceName() const override { return GetNameForPID(currentPid); }
 
     const char *GetDeviceType() const override { return "VaxeeDongle"; }
     int GetPriority() const override { return 5; }
@@ -24,10 +24,7 @@ protected:
         return {PID_DONGLE_1, PID_DONGLE_2, PID_DONGLE_3, PID_DONGLE_4K};
     }
 
-    bool IsDonglePID(USHORT) const override
-    {
-        return true;
-    }
+    bool IsDonglePID(USHORT) const override { return true; }
 
 private:
     static std::wstring GetNameForPID(USHORT pid)

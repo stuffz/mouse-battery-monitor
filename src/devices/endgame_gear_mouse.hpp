@@ -1,14 +1,14 @@
 #pragma once
 
 #include "devices/endgame_gear_device.hpp"
+#include "platform/platform.hpp"
+#include <string>
+#include <vector>
 
 class EndgameGearMouse : public EndgameGearDevice
 {
 public:
-    std::wstring GetDeviceName() const override
-    {
-        return GetNameForPID(currentPid);
-    }
+    std::wstring GetDeviceName() const override { return GetNameForPID(currentPid); }
 
     const char *GetDeviceType() const override { return "EndgameGearMouse"; }
     int GetPriority() const override { return 1; }
@@ -23,10 +23,7 @@ protected:
         };
     }
 
-    bool IsWiredPID(USHORT) const override
-    {
-        return true;
-    }
+    bool IsWiredPID(USHORT) const override { return true; }
 
 private:
     static std::wstring GetNameForPID(USHORT pid)

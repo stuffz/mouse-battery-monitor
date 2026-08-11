@@ -1,13 +1,14 @@
 #pragma once
 
 #include <windows.h>
+
 #include <dbt.h>
 #include <hidsdi.h>
+
 #include <sstream>
+
 #include "core/config.hpp"
 #include "core/logger.hpp"
-
-using std::wstringstream;
 
 class AppWindow
 {
@@ -18,10 +19,7 @@ public:
     AppWindow(const AppWindow &) = delete;
     AppWindow &operator=(const AppWindow &) = delete;
 
-    void init(const Config *cfg)
-    {
-        config = cfg;
-    }
+    void init(const Config *cfg) { config = cfg; }
 
     void setBuildInfo(const char *date, const char *hash)
     {
@@ -43,16 +41,8 @@ public:
             return false;
         }
 
-        hwnd = CreateWindowExW(
-            0,
-            className,
-            title,
-            0,
-            0, 0, 0, 0,
-            nullptr,
-            nullptr,
-            instance,
-            nullptr);
+        hwnd = CreateWindowExW(0, className, title, 0, 0, 0, 0, 0, nullptr, nullptr, instance,
+                               nullptr);
 
         if (!hwnd)
         {
@@ -76,10 +66,7 @@ public:
         filter.dbcc_devicetype = DBT_DEVTYP_DEVICEINTERFACE;
         HidD_GetHidGuid(&filter.dbcc_classguid);
 
-        deviceNotify = RegisterDeviceNotificationW(
-            hwnd,
-            &filter,
-            DEVICE_NOTIFY_WINDOW_HANDLE);
+        deviceNotify = RegisterDeviceNotificationW(hwnd, &filter, DEVICE_NOTIFY_WINDOW_HANDLE);
 
         if (deviceNotify)
         {
@@ -139,14 +126,11 @@ public:
         }
     }
 
-    HWND handle() const
-    {
-        return hwnd;
-    }
+    HWND handle() const { return hwnd; }
 
     void showAboutDialog()
     {
-        wstringstream ss;
+        std::wstringstream ss;
         ss << L"Mouse Battery Monitor\n\n"
            << L"Build Date: " << buildDate << L"\n"
            << L"Git Hash: " << gitHash << L"\n\n"
@@ -159,8 +143,7 @@ public:
                << L"Debug Mode: " << (config->GetDebugMode() ? L"Enabled" : L"Disabled");
         }
 
-        MessageBoxW(hwnd, ss.str().c_str(),
-                    L"About Mouse Battery Monitor",
+        MessageBoxW(hwnd, ss.str().c_str(), L"About Mouse Battery Monitor",
                     MB_OK | MB_ICONINFORMATION);
     }
 

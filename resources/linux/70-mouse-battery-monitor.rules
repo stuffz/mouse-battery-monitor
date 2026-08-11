@@ -1,0 +1,17 @@
+# Mouse Battery Monitor - grant the local desktop user access to the vendor HID
+# interfaces used for battery reads. /dev/hidraw* is root-only by default.
+#
+# Install:  sudo make install-udev-rules
+#     or:   sudo install -Dm644 70-mouse-battery-monitor.rules \
+#               /etc/udev/rules.d/70-mouse-battery-monitor.rules
+#           sudo udevadm control --reload-rules && sudo udevadm trigger
+#
+# TAG+="uaccess" hands access to whoever is logged in at the seat, so no group
+# membership is needed. Replace it with MODE="0660", GROUP="plugdev" on systems
+# without systemd-logind.
+
+# Endgame Gear
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="3367", TAG+="uaccess"
+
+# VAXEE / Kingsis
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="3057", TAG+="uaccess"

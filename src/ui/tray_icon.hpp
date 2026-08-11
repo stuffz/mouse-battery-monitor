@@ -1,11 +1,14 @@
 #pragma once
 
-#include <windows.h>
-#include <shellapi.h>
-#include <string>
-#include "core/logger.hpp"
+#ifdef _WIN32
 
-using std::wstring;
+#include <windows.h>
+
+#include <shellapi.h>
+
+#include <string>
+
+#include "core/logger.hpp"
 
 class TrayIcon
 {
@@ -16,7 +19,7 @@ public:
     TrayIcon(const TrayIcon &) = delete;
     TrayIcon &operator=(const TrayIcon &) = delete;
 
-    void init(HWND hwnd, UINT callbackMessage, UINT iconId, HICON icon, const wstring &tooltip)
+    void init(HWND hwnd, UINT callbackMessage, UINT iconId, HICON icon, const std::wstring &tooltip)
     {
         nid = {};
         nid.cbSize = sizeof(NOTIFYICONDATAW);
@@ -38,7 +41,7 @@ public:
         }
     }
 
-    void update(HICON icon, const wstring &tooltip)
+    void update(HICON icon, const std::wstring &tooltip)
     {
         nid.hIcon = icon;
         wcscpy_s(nid.szTip, tooltip.c_str());
@@ -46,7 +49,8 @@ public:
         Shell_NotifyIconW(NIM_MODIFY, &nid);
     }
 
-    void showNotification(const wstring &title, const wstring &message, DWORD flags = NIIF_WARNING)
+    void showNotification(const std::wstring &title, const std::wstring &message,
+                          DWORD flags = NIIF_WARNING)
     {
         nid.uFlags |= NIF_INFO;
         wcscpy_s(nid.szInfoTitle, title.c_str());
@@ -56,10 +60,7 @@ public:
         nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
     }
 
-    void remove()
-    {
-        Shell_NotifyIconW(NIM_DELETE, &nid);
-    }
+    void remove() { Shell_NotifyIconW(NIM_DELETE, &nid); }
 
     void reAdd()
     {
@@ -70,3 +71,83 @@ public:
 private:
     NOTIFYICONDATAW nid{};
 };
+
+#else
+
+#include <QIcon>
+#include <QMenu>
+#include <QString>
+#include <QSystemTrayIcon>
+
+#include <memory>
+#include <string>
+
+#include "core/logger.hpp"
+
+class TrayIcon
+{
+public:
+    TrayIcon() = default;
+    ~TrayIcon() = default;
+
+    TrayIcon(const TrayIcon &) = delete;
+    TrayIcon &operator=(const TrayIcon &) = delete;
+
+    void init(const QIcon &icon, const std::wstring &tooltip)
+    {
+        trayIcon = std::make_unique<QSystemTrayIcon>();
+        trayIcon->setIcon(icon);
+        trayIcon->setToolTip(QString::fromStdWString(tooltip));
+        trayIcon->show();
+
+        LOG_DEBUG("Tray icon added successfully");
+    }
+
+    void update(const QIcon &icon, const std::wstring &tooltip)
+    {
+        if (!trayIcon)
+        {
+            return;
+        }
+
+        trayIcon->setIcon(icon);
+        trayIcon->setToolTip(QString::fromStdWString(tooltip));
+    }
+
+    void showNotification(const std::wstring &title, const std::wstring &message)
+    {
+        if (!trayIcon)
+        {
+            return;
+        }
+
+        trayIcon->showMessage(QString::fromStdWString(title), QString::fromStdWString(message),
+                              QSystemTrayIcon::Warning, NOTIFICATION_TIMEOUT_MS);
+    }
+
+    void setContextMenu(QMenu *menu)
+    {
+        if (trayIcon)
+        {
+            trayIcon->setContextMenu(menu);
+        }
+    }
+
+    void remove()
+    {
+        if (trayIcon)
+        {
+            trayIcon->hide();
+            trayIcon.reset();
+        }
+    }
+
+    QSystemTrayIcon *handle() const { return trayIcon.get(); }
+
+private:
+    static constexpr int NOTIFICATION_TIMEOUT_MS = 10000;
+
+    std::unique_ptr<QSystemTrayIcon> trayIcon;
+};
+
+#endif
