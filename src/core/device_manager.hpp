@@ -1,22 +1,15 @@
 #pragma once
 
-#include "devices/mouse_device.hpp"
-#include "devices/endgame_gear_device.hpp"
-#include "devices/endgame_gear_mouse.hpp"
-#include "devices/endgame_gear_dongle.hpp"
-#include "devices/vaxee_device.hpp"
-#include "devices/vaxee_mouse.hpp"
-#include "devices/vaxee_dongle.hpp"
 #include "core/logger.hpp"
-#include <memory>
-#include <vector>
+#include "devices/endgame_gear_dongle.hpp"
+#include "devices/endgame_gear_mouse.hpp"
+#include "devices/mouse_device.hpp"
+#include "devices/vaxee_dongle.hpp"
+#include "devices/vaxee_mouse.hpp"
 #include <algorithm>
+#include <memory>
 #include <string>
-
-using std::string;
-using std::unique_ptr;
-using std::vector;
-using std::wstring;
+#include <vector>
 
 class DeviceManager
 {
@@ -25,19 +18,14 @@ public:
 
     DeviceManager()
     {
-        // Endgame Gear devices
         devices.push_back(std::make_unique<EndgameGearMouse>());
         devices.push_back(std::make_unique<EndgameGearDongle>());
 
-        // VAXEE devices
         devices.push_back(std::make_unique<VaxeeMouse>());
         devices.push_back(std::make_unique<VaxeeDongle>());
 
         std::sort(devices.begin(), devices.end(),
-                  [](const auto &a, const auto &b)
-                  {
-                      return a->GetPriority() < b->GetPriority();
-                  });
+                  [](const auto &a, const auto &b) { return a->GetPriority() < b->GetPriority(); });
     }
 
     bool FindAndConnect()
@@ -47,7 +35,7 @@ public:
             if (device->FindAndConnect())
             {
                 activeDevice = device.get();
-                LOG_INFO(string("Active device: ") + device->GetDeviceType());
+                LOG_INFO(std::string("Active device: ") + device->GetDeviceType());
                 return true;
             }
         }
@@ -63,10 +51,7 @@ public:
         }
     }
 
-    bool IsConnected() const
-    {
-        return activeDevice && activeDevice->IsConnected();
-    }
+    bool IsConnected() const { return activeDevice && activeDevice->IsConnected(); }
 
     BatteryStatus ReadBattery()
     {
@@ -77,12 +62,12 @@ public:
         return activeDevice->ReadBattery();
     }
 
-    wstring GetDeviceName() const
+    std::wstring GetDeviceName() const
     {
         return activeDevice ? activeDevice->GetDeviceName() : L"Unknown";
     }
 
-    wstring GetConnectionMode() const
+    std::wstring GetConnectionMode() const
     {
         return activeDevice ? activeDevice->GetConnectionMode() : L"Unknown";
     }
@@ -94,7 +79,7 @@ public:
             return false;
         }
 
-        int currentPriority = activeDevice->GetPriority();
+        const int currentPriority = activeDevice->GetPriority();
 
         for (auto &device : devices)
         {
@@ -107,7 +92,7 @@ public:
             {
                 if (device->FindAndConnect())
                 {
-                    LOG_INFO(string("Switching to higher priority device: ") +
+                    LOG_INFO(std::string("Switching to higher priority device: ") +
                              device->GetDeviceType());
                     activeDevice->Disconnect();
                     activeDevice = device.get();
@@ -120,6 +105,6 @@ public:
     }
 
 private:
-    vector<unique_ptr<MouseDevice>> devices;
+    std::vector<std::unique_ptr<MouseDevice>> devices;
     MouseDevice *activeDevice = nullptr;
 };

@@ -1,6 +1,9 @@
 #pragma once
 
 #include "devices/endgame_gear_device.hpp"
+#include "platform/platform.hpp"
+#include <string>
+#include <vector>
 
 class EndgameGearDongle : public EndgameGearDevice
 {
@@ -12,13 +15,7 @@ public:
     int GetPriority() const override { return 3; }
 
 protected:
-    std::vector<USHORT> GetSupportedPIDs() const override
-    {
-        return {PID_DONGLE};
-    }
+    std::vector<USHORT> GetSupportedPIDs() const override { return {PID_DONGLE}; }
 
-    bool IsWiredPID(USHORT) const override
-    {
-        return false;
-    }
+    bool IsWiredPID(USHORT) const override { return false; }
 };

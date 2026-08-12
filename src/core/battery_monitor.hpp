@@ -1,16 +1,13 @@
 #pragma once
 
-#include <string>
-#include <sstream>
 #include "device_manager.hpp"
 #include "logger.hpp"
 #include "ui/icon_loader.hpp"
-#include "ui/tray_icon.hpp"
 #include "ui/notification_manager.hpp"
-
-using std::string;
-using std::wstring;
-using std::wstringstream;
+#include "ui/tray_icon.hpp"
+#include <exception>
+#include <sstream>
+#include <string>
 
 class BatteryMonitor
 {
@@ -24,7 +21,6 @@ public:
         notificationMgr = notifications;
     }
 
-    // Main polling loop entry point.
     void update()
     {
         try
@@ -54,8 +50,8 @@ public:
             }
             else if (deviceManager.IsConnected())
             {
-                // Handle still open, but read failed -> mouse is sleeping.
-                // Keep cached status to avoid UI flicker.
+                // Keep the cached status: clearing it makes the tray flicker
+                // every time the mouse sleeps.
                 LOG_DEBUG("Read failed - mouse appears to be sleeping");
             }
             else
@@ -65,7 +61,7 @@ public:
         }
         catch (const std::exception &ex)
         {
-            LOG_ERROR("Exception during battery update: " + string(ex.what()));
+            LOG_ERROR("Exception during battery update: " + std::string(ex.what()));
             deviceManager.Disconnect();
             handleDisconnected();
         }
@@ -84,19 +80,16 @@ public:
         update();
     }
 
-    bool hasValidStatus() const
-    {
-        return cachedStatus.percentage >= 0;
-    }
+    bool hasValidStatus() const { return cachedStatus.percentage >= 0; }
 
     void triggerTestNotification(int fallbackPercentage)
     {
         if (!notificationMgr)
             return;
 
-        auto status = deviceManager.ReadBattery();
-        int percentage = status.percentage >= 0 ? status.percentage : fallbackPercentage;
-        wstring name = deviceManager.IsConnected() ? deviceManager.GetDeviceName() : L"";
+        const auto status = deviceManager.ReadBattery();
+        const int percentage = status.percentage >= 0 ? status.percentage : fallbackPercentage;
+        const std::wstring name = deviceManager.IsConnected() ? deviceManager.GetDeviceName() : L"";
         notificationMgr->triggerTestNotification(percentage, name);
     }
 
@@ -109,13 +102,13 @@ private:
     NotificationManager *notificationMgr = nullptr;
 
     DeviceManager::BatteryStatus cachedStatus{};
-    wstring cachedDeviceName;
-    wstring cachedConnectionMode;
+    std::wstring cachedDeviceName;
+    std::wstring cachedConnectionMode;
 
     void handleValidRead(const DeviceManager::BatteryStatus &status)
     {
-        LOG_DEBUG("Battery: " + std::to_string(status.percentage) + "%, Charging: " +
-                  (status.isCharging ? "Yes" : "No"));
+        LOG_DEBUG("Battery: " + std::to_string(status.percentage) +
+                  "%, Charging: " + (status.isCharging ? "Yes" : "No"));
 
         cachedStatus = status;
         cachedDeviceName = deviceManager.GetDeviceName();
@@ -125,8 +118,7 @@ private:
 
         if (notificationMgr)
         {
-            notificationMgr->checkLowBattery(status.percentage,
-                                             status.isCharging,
+            notificationMgr->checkLowBattery(status.percentage, status.isCharging,
                                              cachedDeviceName);
         }
     }
@@ -154,9 +146,9 @@ private:
             buildTooltip());
     }
 
-    wstring buildTooltip() const
+    std::wstring buildTooltip() const
     {
-        wstringstream ss;
+        std::wstringstream ss;
         ss << cachedDeviceName << L"\n"
            << cachedConnectionMode << L"\n"
            << L"Battery: " << cachedStatus.percentage << L"%";

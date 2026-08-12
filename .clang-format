@@ -1,0 +1,52 @@
+# Run with: make format (rewrite) or make format-check (verify, used by CI).
+---
+Language: Cpp
+Standard: c++17
+BasedOnStyle: LLVM
+
+IndentWidth: 4
+ColumnLimit: 100
+AccessModifierOffset: -4
+
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterCaseLabel: true
+  AfterClass: true
+  AfterControlStatement: Always
+  AfterEnum: true
+  AfterExternBlock: true
+  AfterFunction: true
+  AfterNamespace: true
+  AfterStruct: true
+  AfterUnion: true
+  BeforeCatch: true
+  BeforeElse: true
+  BeforeLambdaBody: true
+  BeforeWhile: false
+  SplitEmptyFunction: false
+  SplitEmptyRecord: false
+
+PointerAlignment: Right
+ReferenceAlignment: Pointer
+
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AllowShortCaseLabelsOnASingleLine: false
+AllowShortEnumsOnASingleLine: false
+
+IndentCaseLabels: false
+IndentCaseBlocks: false
+NamespaceIndentation: None
+FixNamespaceComments: true
+
+# Blocks separated by blank lines sort independently; grouping is by hand.
+SortIncludes: CaseSensitive
+IncludeBlocks: Preserve
+
+AlignAfterOpenBracket: Align
+AlignTrailingComments: true
+KeepEmptyLinesAtTheStartOfBlocks: false
+MaxEmptyLinesToKeep: 1
+AlwaysBreakTemplateDeclarations: Yes
+Cpp11BracedListStyle: true

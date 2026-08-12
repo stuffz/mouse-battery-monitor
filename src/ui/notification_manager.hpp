@@ -1,42 +1,29 @@
 #pragma once
 
-#include <string>
-#include <sstream>
-#include "tray_icon.hpp"
 #include "core/logger.hpp"
-
-using std::wstring;
-using std::wstringstream;
+#include "tray_icon.hpp"
+#include <sstream>
+#include <string>
 
 class NotificationManager
 {
 public:
     NotificationManager() = default;
 
-    void setTrayIcon(TrayIcon *icon)
-    {
-        trayIcon = icon;
-    }
+    void setTrayIcon(TrayIcon *icon) { trayIcon = icon; }
 
-    void setThreshold(int value)
-    {
-        threshold = value;
-    }
+    void setThreshold(int value) { threshold = value; }
 
-    void setEnabled(bool value)
-    {
-        enabled = value;
-    }
+    void setEnabled(bool value) { enabled = value; }
 
-    void checkLowBattery(int percentage, bool charging, const wstring &deviceName)
+    void checkLowBattery(int percentage, bool charging, const std::wstring &deviceName)
     {
         if (!enabled || !trayIcon || percentage <= 0)
         {
             return;
         }
 
-        // Reset notification flag when battery recovers above threshold + hysteresis
-        if (percentage > threshold + 5)
+        if (percentage > threshold + RECOVERY_HYSTERESIS)
         {
             notificationShown = false;
             return;
@@ -49,10 +36,10 @@ public:
 
         if (!notificationShown)
         {
-            wstringstream title;
+            std::wstringstream title;
             title << deviceName << L" - Low Battery";
 
-            wstringstream msg;
+            std::wstringstream msg;
             msg << L"Battery at " << percentage << L"%";
 
             trayIcon->showNotification(title.str(), msg.str());
@@ -61,7 +48,7 @@ public:
         }
     }
 
-    void triggerTestNotification(int percentage, const wstring &deviceName)
+    void triggerTestNotification(int percentage, const std::wstring &deviceName)
     {
         if (!trayIcon)
         {
@@ -70,7 +57,7 @@ public:
 
         LOG_INFO("Triggering test low battery notification");
 
-        wstringstream title;
+        std::wstringstream title;
         if (!deviceName.empty())
         {
             title << deviceName << L" - Low Battery";
@@ -80,13 +67,15 @@ public:
             title << L"Mouse - Low Battery";
         }
 
-        wstringstream msg;
+        std::wstringstream msg;
         msg << L"Battery at " << percentage << L"%";
 
         trayIcon->showNotification(title.str(), msg.str());
     }
 
 private:
+    static constexpr int RECOVERY_HYSTERESIS = 5;
+
     TrayIcon *trayIcon = nullptr;
     int threshold = 20;
     bool enabled = true;

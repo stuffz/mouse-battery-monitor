@@ -1,0 +1,15 @@
+[Unit]
+Description=Mouse Battery Monitor tray icon
+Documentation=https://github.com/stuffz/mouse-battery-monitor
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=simple
+# @PREFIX@ is substituted with the install prefix by "make install".
+ExecStart=@PREFIX@/bin/mouse-battery-monitor
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target

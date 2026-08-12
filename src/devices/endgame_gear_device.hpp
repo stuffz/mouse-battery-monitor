@@ -1,18 +1,18 @@
 #pragma once
 
-#include "devices/mouse_device.hpp"
 #include "core/hid_device.hpp"
 #include "core/logger.hpp"
+#include "devices/mouse_device.hpp"
+#include "platform/platform.hpp"
+#include <algorithm>
+#include <chrono>
+#include <exception>
+#include <iomanip>
+#include <ios>
+#include <sstream>
 #include <string>
 #include <thread>
-#include <chrono>
-#include <algorithm>
-#include <sstream>
-#include <iomanip>
-
-using std::string;
-using std::vector;
-using std::wstring;
+#include <vector>
 
 class EndgameGearDevice : public MouseDevice
 {
@@ -21,10 +21,8 @@ public:
     static constexpr USHORT USAGE_PAGE = 0xFF01;
     static constexpr USHORT USAGE = 0x0002;
 
-    virtual ~EndgameGearDevice()
-    {
-        Disconnect();
-    }
+    // Qualified: virtual dispatch is already off in a destructor.
+    ~EndgameGearDevice() override { EndgameGearDevice::Disconnect(); }
 
     EndgameGearDevice(const EndgameGearDevice &) = delete;
     EndgameGearDevice &operator=(const EndgameGearDevice &) = delete;
@@ -47,16 +45,13 @@ public:
         currentPid = 0;
     }
 
-    bool IsConnected() const override
-    {
-        return device.IsOpen();
-    }
+    bool IsConnected() const override { return device.IsOpen(); }
 
     BatteryStatus ReadBattery() override
     {
         if (!IsConnected())
         {
-            LOG_DEBUG(string(GetDeviceType()) + ": Device not connected");
+            LOG_DEBUG(std::string(GetDeviceType()) + ": Device not connected");
             return {};
         }
 
@@ -71,12 +66,12 @@ public:
 
             for (int attempt = 0; attempt < NUM_ATTEMPTS; ++attempt)
             {
-                LOG_DEBUG(string(GetDeviceType()) + ": Attempt " +
+                LOG_DEBUG(std::string(GetDeviceType()) + ": Attempt " +
                           std::to_string(attempt + 1) + "/" + std::to_string(NUM_ATTEMPTS));
 
                 if (!SendBatteryCommand(REPORT_ID, BATTERY_CMD, REPORT_SIZE))
                 {
-                    LOG_DEBUG(string(GetDeviceType()) + ": Failed to send battery command");
+                    LOG_DEBUG(std::string(GetDeviceType()) + ": Failed to send battery command");
                     return {};
                 }
 
@@ -85,17 +80,17 @@ public:
                 BYTE readBuffer[REPORT_SIZE] = {0};
                 if (!device.GetFeatureReport(REPORT_ID, readBuffer, REPORT_SIZE))
                 {
-                    LOG_DEBUG(string(GetDeviceType()) + ": Failed to get feature report");
+                    LOG_DEBUG(std::string(GetDeviceType()) + ": Failed to get feature report");
                     return {};
                 }
 
                 std::ostringstream oss;
-                oss << GetDeviceType() << ": Response bytes [0-3]: " << std::hex << std::setfill('0')
-                    << std::setw(2) << static_cast<int>(readBuffer[0]) << " "
-                    << std::setw(2) << static_cast<int>(readBuffer[1]) << " "
-                    << std::setw(2) << static_cast<int>(readBuffer[2]) << " "
-                    << std::setw(2) << static_cast<int>(readBuffer[3])
-                    << ", byte[16]: " << std::setw(2) << static_cast<int>(readBuffer[16]);
+                oss << GetDeviceType() << ": Response bytes [0-3]: " << std::hex
+                    << std::setfill('0') << std::setw(2) << static_cast<int>(readBuffer[0]) << " "
+                    << std::setw(2) << static_cast<int>(readBuffer[1]) << " " << std::setw(2)
+                    << static_cast<int>(readBuffer[2]) << " " << std::setw(2)
+                    << static_cast<int>(readBuffer[3]) << ", byte[16]: " << std::setw(2)
+                    << static_cast<int>(readBuffer[16]);
                 LOG_DEBUG(oss.str());
 
                 if (attempt == 0)
@@ -106,34 +101,31 @@ public:
 
                 if (readBuffer[1] != 0x01 && readBuffer[1] != 0x08)
                 {
-                    LOG_DEBUG(string(GetDeviceType()) + ": Invalid response - unexpected byte[1] value");
+                    LOG_DEBUG(std::string(GetDeviceType()) +
+                              ": Invalid response - unexpected byte[1] value");
                     return {};
                 }
 
                 status = ParseBatteryResponse(readBuffer[16]);
-                LOG_DEBUG(string(GetDeviceType()) + ": Success - Battery " +
+                LOG_DEBUG(std::string(GetDeviceType()) + ": Success - Battery " +
                           std::to_string(status.percentage) + "%");
                 return status;
             }
         }
         catch (const std::exception &ex)
         {
-            LOG_ERROR(string(GetDeviceType()) + " exception: " + ex.what());
+            LOG_ERROR(std::string(GetDeviceType()) + " exception: " + ex.what());
         }
         catch (...)
         {
-            LOG_ERROR(string(GetDeviceType()) + ": Unknown exception");
+            LOG_ERROR(std::string(GetDeviceType()) + ": Unknown exception");
         }
 
-        LOG_DEBUG(string(GetDeviceType()) + ": All attempts failed");
+        LOG_DEBUG(std::string(GetDeviceType()) + ": All attempts failed");
         return {};
     }
 
-    virtual wstring GetDeviceName() const = 0;
-    virtual const char *GetDeviceType() const = 0;
-    virtual int GetPriority() const = 0;
-
-    wstring GetConnectionMode() const override
+    std::wstring GetConnectionMode() const override
     {
         if (currentPid == 0)
             return L"Unknown";
@@ -141,9 +133,9 @@ public:
     }
 
 protected:
-    EndgameGearDevice() : currentPid(0) {}
+    EndgameGearDevice() = default;
 
-    virtual vector<USHORT> GetSupportedPIDs() const = 0;
+    virtual std::vector<USHORT> GetSupportedPIDs() const = 0;
     virtual bool IsWiredPID(USHORT pid) const = 0;
 
     bool FindAndConnectWithPID(USHORT pid)
@@ -156,8 +148,8 @@ protected:
                 currentPid = pid;
                 std::ostringstream pidStream;
                 pidStream << std::hex << std::uppercase << pid;
-                LOG_INFO(string(GetDeviceType()) + " connected (PID: 0x" +
-                         pidStream.str() + ")");
+                LOG_INFO(std::string(GetDeviceType()) + " connected (PID: 0x" + pidStream.str() +
+                         ")");
                 return true;
             }
         }
@@ -181,5 +173,5 @@ protected:
     }
 
     HIDDevice device;
-    USHORT currentPid;
+    USHORT currentPid = 0;
 };

@@ -1,0 +1,68 @@
+# Maintainer: stuffz
+#
+# Build and install:
+#   cd packaging/arch && makepkg -si
+#
+# Works on Arch and derivatives (CachyOS, EndeavourOS, Manjaro).
+
+pkgname=mouse-battery-monitor-git
+_pkgname=mouse-battery-monitor
+pkgver=r0.g0000000
+pkgrel=1
+pkgdesc="System tray battery monitor for Endgame Gear and VAXEE wireless mice"
+arch=('x86_64')
+url="https://github.com/stuffz/mouse-battery-monitor"
+license=('MIT')
+depends=('qt6-base' 'systemd-libs')
+makedepends=('git')
+provides=("$_pkgname")
+conflicts=("$_pkgname")
+install="$pkgname.install"
+# Release builds carry no debug info, so an empty debug package would only warn.
+options=('!debug')
+
+_repo="https://github.com/stuffz/mouse-battery-monitor.git"
+
+source=("$_pkgname::git+$_repo")
+sha256sums=('SKIP')
+
+pkgver() {
+    cd "$srcdir/$_pkgname"
+    # No release tags yet, so use the commit count and hash.
+    printf 'r%s.g%s' "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+}
+
+build() {
+    cd "$srcdir/$_pkgname"
+
+    # Honour SOURCE_DATE_EPOCH so the embedded build date is reproducible.
+    local build_date
+    build_date="$(date -u -d "@${SOURCE_DATE_EPOCH:-$(date +%s)}" '+%Y-%m-%d %H:%M:%S')"
+
+    make build \
+        GIT_HASH="$(git rev-parse --short HEAD)" \
+        BUILD_DATE="$build_date"
+}
+
+check() {
+    cd "$srcdir/$_pkgname"
+    # No device access in a build environment, so just verify the binary runs.
+    ./build/release/mouse-battery-monitor --version
+}
+
+package() {
+    cd "$srcdir/$_pkgname"
+
+    make install DESTDIR="$pkgdir" PREFIX=/usr
+
+    # Packaged udev rules belong under /usr/lib, not /etc. The 70- prefix is
+    # required: TAG+="uaccess" has to be set before 73-seat-late.rules applies
+    # the ACL.
+    install -Dm644 resources/linux/70-mouse-battery-monitor.rules \
+        "$pkgdir/usr/lib/udev/rules.d/70-mouse-battery-monitor.rules"
+
+    install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+    install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
+    install -Dm644 ATTRIBUTION.md "$pkgdir/usr/share/doc/$pkgname/ATTRIBUTION.md"
+    install -Dm644 docs/LINUX.md "$pkgdir/usr/share/doc/$pkgname/LINUX.md"
+}

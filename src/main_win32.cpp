@@ -1,5 +1,7 @@
 #include <windows.h>
+
 #include <string>
+
 #include "core/application.hpp"
 #include "core/logger.hpp"
 
@@ -11,7 +13,6 @@
 #define GIT_HASH "unknown"
 #endif
 
-using std::string;
 using Constants = Application::Constants;
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
@@ -66,14 +67,16 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int)
     }
     catch (const std::exception &ex)
     {
-        LOG_ERROR(string("Unhandled exception: ") + ex.what());
-        MessageBoxW(nullptr, L"Unhandled exception. Check log for details.", L"Error", MB_OK | MB_ICONERROR);
+        LOG_ERROR(std::string("Unhandled exception: ") + ex.what());
+        MessageBoxW(nullptr, L"Unhandled exception. Check log for details.", L"Error",
+                    MB_OK | MB_ICONERROR);
         return 1;
     }
     catch (...)
     {
         LOG_ERROR("Unhandled unknown exception");
-        MessageBoxW(nullptr, L"Unhandled exception. Check log for details.", L"Error", MB_OK | MB_ICONERROR);
+        MessageBoxW(nullptr, L"Unhandled exception. Check log for details.", L"Error",
+                    MB_OK | MB_ICONERROR);
         return 1;
     }
 }

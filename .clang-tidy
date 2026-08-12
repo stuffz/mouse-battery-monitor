@@ -1,0 +1,51 @@
+# Run with: make lint
+#
+# clang-diagnostic-* is included on purpose: it is what surfaces compiler
+# warnings such as -Winconsistent-missing-override, which the -Wall -Wextra
+# build was missing.
+Checks: >
+  -*,
+  clang-diagnostic-*,
+  clang-analyzer-*,
+  bugprone-*,
+  performance-*,
+  portability-*,
+  misc-*,
+  cert-*,
+  -bugprone-easily-swappable-parameters,
+  -misc-non-private-member-variables-in-classes,
+  -misc-const-correctness,
+  -performance-avoid-endl,
+  -performance-enum-size,
+  -portability-avoid-pragma-once
+
+# Why the exclusions:
+#
+#   misc-const-correctness      Advises const on QApplication, QAction* and
+#                               std::lock_guard, where it is wrong or pointless.
+#   performance-avoid-endl      The console log path wants endl's flush so debug
+#                               output appears immediately when piped.
+#   performance-enum-size       Four small enums, none stored in bulk.
+#   portability-avoid-pragma-once  Project-wide convention; every targeted
+#                               compiler supports it.
+#
+# The #ifdef dispatch headers (application.hpp, hid_device.hpp) carry
+# "IWYU pragma: export" so misc-include-cleaner attributes their platform
+# headers to them instead of reporting the dispatch include as unused.
+#
+# IgnoreHeaders:
+#   q*.h        Qt code includes <QMenu> while the declaring header is qmenu.h;
+#               include-cleaner has no mapping between the two, so every Qt
+#               symbol would be a false "no header providing" error. clangd
+#               handles Qt correctly in-editor.
+#   bits/*      glibc internals (sigset_t lives in bits/types/sigset_t.h);
+#               <signal.h> is the include one actually writes.
+
+CheckOptions:
+  misc-include-cleaner.IgnoreHeaders: 'q[a-z_0-9]+\.h;bits/.*'
+
+HeaderFilterRegex: 'src/.*'
+
+# WarningsAsErrors intentionally lives in the Makefile lint target, not here:
+# clangd reads this file too, and promoting everything to errors makes every
+# editor diagnostic red.

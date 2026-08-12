@@ -1,14 +1,16 @@
 #pragma once
 
+#include <array>
+#include <chrono>
+#include <cstddef>
+#include <ctime>
+#include <fstream>
+#include <iomanip>
+#include <iostream>
+#include <mutex>
+#include <sstream>
 #include <string>
 #include <string_view>
-#include <fstream>
-#include <mutex>
-#include <iostream>
-#include <sstream>
-#include <iomanip>
-#include <chrono>
-#include <array>
 
 enum class LogLevel
 {
@@ -29,10 +31,7 @@ public:
     Logger(const Logger &) = delete;
     Logger &operator=(const Logger &) = delete;
 
-    void SetDebugMode(bool enabled)
-    {
-        debugMode = enabled;
-    }
+    void SetDebugMode(bool enabled) { debugMode = enabled; }
 
     void SetLogFile(const std::string &filename)
     {
@@ -72,10 +71,7 @@ private:
         }
     }
 
-    bool ShouldLog(LogLevel level) const
-    {
-        return level != LogLevel::Debug || debugMode;
-    }
+    bool ShouldLog(LogLevel level) const { return level != LogLevel::Debug || debugMode; }
 
     void WriteToFile(LogLevel level, const std::string &message)
     {
@@ -88,14 +84,15 @@ private:
 
         if (logFile.is_open())
         {
-            logFile << "[" << GetTimestamp() << "] [" << LevelToString(level)
-                    << "] " << message << std::endl;
+            logFile << "[" << GetTimestamp() << "] [" << LevelToString(level) << "] " << message
+                    << "\n";
             logFile.flush();
         }
     }
 
     void WriteToConsole(LogLevel level, const std::string &message) const
     {
+        // endl, not "\n": debug output must appear immediately even when piped.
         std::cout << "[" << LevelToString(level) << "] " << message << std::endl;
     }
 
@@ -103,16 +100,19 @@ private:
     {
         const auto now = std::chrono::system_clock::now();
         const auto timeT = std::chrono::system_clock::to_time_t(now);
-        const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-                            now.time_since_epoch()) %
-                        1000;
+        const auto ms =
+            std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
 
-        std::tm tm;
+        std::tm tm{};
+#ifdef _WIN32
         localtime_s(&tm, &timeT);
+#else
+        localtime_r(&timeT, &tm);
+#endif
 
         std::ostringstream oss;
-        oss << std::put_time(&tm, "%Y-%m-%d %H:%M:%S")
-            << '.' << std::setfill('0') << std::setw(3) << ms.count();
+        oss << std::put_time(&tm, "%Y-%m-%d %H:%M:%S") << '.' << std::setfill('0') << std::setw(3)
+            << ms.count();
         return oss.str();
     }
 

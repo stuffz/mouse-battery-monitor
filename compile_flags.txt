@@ -1,3 +1,7 @@
 -std=c++17
 -Isrc
 -Wall
+-I/usr/include/qt6
+-I/usr/include/qt6/QtCore
+-I/usr/include/qt6/QtGui
+-I/usr/include/qt6/QtWidgets

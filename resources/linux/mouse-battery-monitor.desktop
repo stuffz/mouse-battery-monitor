@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Mouse Battery Monitor
+Comment=Tray battery monitor for Endgame Gear and VAXEE wireless mice
+Exec=@PREFIX@/bin/mouse-battery-monitor
+Icon=mouse-battery-monitor
+Categories=Utility;
+Terminal=false
+StartupNotify=false
+X-GNOME-Autostart-enabled=true
