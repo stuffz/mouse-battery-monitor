@@ -57,6 +57,8 @@ public:
 
         constexpr BYTE REPORT_ID = 0xA1;
         constexpr BYTE BATTERY_CMD = 0xB4;
+        constexpr BYTE STATUS_OK = 0x01;
+        constexpr BYTE STATUS_MOUSE_UNREACHABLE = 0x08;
         constexpr DWORD REPORT_SIZE = 64;
         constexpr int NUM_ATTEMPTS = 2;
 
@@ -90,7 +92,8 @@ public:
                     << std::setw(2) << static_cast<int>(readBuffer[1]) << " " << std::setw(2)
                     << static_cast<int>(readBuffer[2]) << " " << std::setw(2)
                     << static_cast<int>(readBuffer[3]) << ", byte[16]: " << std::setw(2)
-                    << static_cast<int>(readBuffer[16]);
+                    << static_cast<int>(readBuffer[16]) << ", voltage: " << std::dec
+                    << (readBuffer[17] | (readBuffer[18] << 8)) << " mV";
                 LOG_DEBUG(oss.str());
 
                 if (attempt == 0)
@@ -99,7 +102,17 @@ public:
                     continue;
                 }
 
-                if (readBuffer[1] != 0x01 && readBuffer[1] != 0x08)
+                if (readBuffer[1] == STATUS_MOUSE_UNREACHABLE)
+                {
+                    // The dongle answers 0x08 when the mouse is asleep or switched
+                    // off. The payload is then the previous reply still sitting in
+                    // its buffer, so byte[16] is stale and must not be reported.
+                    LOG_DEBUG(std::string(GetDeviceType()) +
+                              ": Mouse unreachable (asleep or off) - stale payload ignored");
+                    return {};
+                }
+
+                if (readBuffer[1] != STATUS_OK)
                 {
                     LOG_DEBUG(std::string(GetDeviceType()) +
                               ": Invalid response - unexpected byte[1] value");

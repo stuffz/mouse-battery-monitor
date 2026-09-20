@@ -41,15 +41,38 @@ The request is sent as a HID Set Feature Report.
 
 The response is read as a HID Get Feature Report with Report ID 0xA1.
 
-| Byte | Description              |
-| ---- | ------------------------ |
-| 0    | Report ID (0xA1)         |
-| 1    | Status (0x01 or 0x08)    |
-| 16   | Battery percentage (0-100) |
+| Byte  | Description                          |
+| ----- | ------------------------------------ |
+| 0     | Report ID (0xA1)                     |
+| 1     | Status (see below)                   |
+| 16    | Battery percentage (0-100, steps of 5) |
+| 17-18 | Battery voltage in mV, little endian |
+
+The percentage is the firmware's own estimate from the cell voltage. It is not
+computed the same way on both paths: the same battery read 75-80 wired while
+charging at 4.15 V and 85 via the dongle at 4.02 V a minute later. Endgame's
+configuration tool hides the wired value and shows the text "Charging" instead
+whenever it is below 100.
+
+### Status Byte
+
+| Value | Meaning                                                              |
+| ----- | -------------------------------------------------------------------- |
+| 0x01  | Fresh reply, payload valid                                           |
+| 0x03  | Busy, retry after a longer wait                                      |
+| 0x07  | Command not supported on this path (e.g. dongle-only command, wired) |
+| 0x08  | Mouse unreachable (asleep or switched off), payload is stale         |
+
+On 0x08 the dongle returns its reply buffer unchanged from the last successful
+command, so `byte[16]` still holds the previous percentage. The mouse sleeps
+after roughly four minutes idle, after which every poll gets 0x08 until it is
+moved. Treating 0x08 as valid froze the tray at the last live value for as long
+as the mouse was idle.
 
 ### Response Validation
 
-- `byte[1]` must be `0x01` or `0x08` for a valid response.
+- `byte[1]` must be `0x01` for a valid response.
+- `0x08` is a sleeping mouse: keep the last known status, do not parse the payload.
 - The battery percentage at `byte[16]` is clamped to 100.
 
 ### Timing
