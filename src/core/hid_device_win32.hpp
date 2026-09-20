@@ -1,11 +1,13 @@
 #pragma once
 
 #include "core/device_info.hpp"
+#include "core/logger.hpp"
 #include "platform/platform.hpp"
 
 #include <chrono>
 #include <memory>
 #include <optional>
+#include <string>
 #include <thread>
 #include <vector>
 
@@ -69,6 +71,7 @@ public:
 
         if (deviceHandle == INVALID_HANDLE_VALUE)
         {
+            LOG_DEBUG("CreateFile failed: " + LastErrorText());
             return false;
         }
 
@@ -90,7 +93,18 @@ public:
 
     bool SendFeatureReport(const BYTE *buffer, DWORD size) const
     {
-        return IsOpen() && HidD_SetFeature(deviceHandle, const_cast<BYTE *>(buffer), size) == TRUE;
+        if (!IsOpen())
+        {
+            return false;
+        }
+
+        if (HidD_SetFeature(deviceHandle, const_cast<BYTE *>(buffer), size) != TRUE)
+        {
+            LOG_DEBUG("HidD_SetFeature failed: " + LastErrorText());
+            return false;
+        }
+
+        return true;
     }
 
     bool GetFeatureReport(BYTE reportId, BYTE *buffer, DWORD size) const
@@ -101,11 +115,37 @@ public:
         }
 
         buffer[0] = reportId;
-        return HidD_GetFeature(deviceHandle, buffer, size) == TRUE;
+
+        if (HidD_GetFeature(deviceHandle, buffer, size) != TRUE)
+        {
+            LOG_DEBUG("HidD_GetFeature failed: " + LastErrorText());
+            return false;
+        }
+
+        return true;
     }
 
 private:
     HANDLE deviceHandle;
+
+    static std::string LastErrorText()
+    {
+        const DWORD code = GetLastError();
+        char *message = nullptr;
+        const DWORD length =
+            FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM |
+                               FORMAT_MESSAGE_IGNORE_INSERTS,
+                           nullptr, code, 0, reinterpret_cast<LPSTR>(&message), 0, nullptr);
+
+        std::string text = "error " + std::to_string(code);
+        if (length != 0)
+        {
+            text += " (" + std::string(message, length) + ")";
+            LocalFree(message);
+        }
+
+        return text;
+    }
 
     static std::optional<DeviceInfo> GetDeviceInfo(HDEVINFO deviceInfoSet,
                                                    SP_DEVICE_INTERFACE_DATA &interfaceData,

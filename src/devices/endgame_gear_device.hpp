@@ -59,7 +59,6 @@ public:
         constexpr BYTE BATTERY_CMD = 0xB4;
         constexpr BYTE STATUS_OK = 0x01;
         constexpr BYTE STATUS_MOUSE_UNREACHABLE = 0x08;
-        constexpr DWORD REPORT_SIZE = 64;
         constexpr int NUM_ATTEMPTS = 2;
 
         try
@@ -86,15 +85,7 @@ public:
                     return {};
                 }
 
-                std::ostringstream oss;
-                oss << GetDeviceType() << ": Response bytes [0-3]: " << std::hex
-                    << std::setfill('0') << std::setw(2) << static_cast<int>(readBuffer[0]) << " "
-                    << std::setw(2) << static_cast<int>(readBuffer[1]) << " " << std::setw(2)
-                    << static_cast<int>(readBuffer[2]) << " " << std::setw(2)
-                    << static_cast<int>(readBuffer[3]) << ", byte[16]: " << std::setw(2)
-                    << static_cast<int>(readBuffer[16]) << ", voltage: " << std::dec
-                    << (readBuffer[17] | (readBuffer[18] << 8)) << " mV";
-                LOG_DEBUG(oss.str());
+                LOG_DEBUG(DescribeResponse(readBuffer, REPORT_SIZE));
 
                 if (attempt == 0)
                 {
@@ -102,7 +93,7 @@ public:
                     continue;
                 }
 
-                if (readBuffer[1] == STATUS_MOUSE_UNREACHABLE)
+                if (readBuffer[STATUS_OFFSET] == STATUS_MOUSE_UNREACHABLE)
                 {
                     // The dongle answers 0x08 when the mouse is asleep or switched
                     // off. The payload is then the previous reply still sitting in
@@ -112,14 +103,14 @@ public:
                     return {};
                 }
 
-                if (readBuffer[1] != STATUS_OK)
+                if (readBuffer[STATUS_OFFSET] != STATUS_OK)
                 {
                     LOG_DEBUG(std::string(GetDeviceType()) +
-                              ": Invalid response - unexpected byte[1] value");
+                              ": Invalid response - unexpected status byte");
                     return {};
                 }
 
-                status = ParseBatteryResponse(readBuffer[16]);
+                status = ParseBatteryResponse(readBuffer[PERCENT_OFFSET]);
                 LOG_DEBUG(std::string(GetDeviceType()) + ": Success - Battery " +
                           std::to_string(status.percentage) + "%");
                 return status;
@@ -184,6 +175,30 @@ protected:
         status.isCharging = IsWiredPID(currentPid);
         return status;
     }
+
+    // The whole reply goes to the log so a user's debug output can answer
+    // protocol questions nobody thought to ask yet; bytes past the documented
+    // fields are where the dongle's stale-buffer behaviour first showed up.
+    std::string DescribeResponse(const BYTE *buffer, DWORD size) const
+    {
+        std::ostringstream oss;
+        oss << GetDeviceType() << ": Response:" << std::hex << std::setfill('0');
+
+        for (DWORD i = 0; i < size; ++i)
+        {
+            oss << ' ' << std::setw(2) << static_cast<int>(buffer[i]);
+        }
+
+        oss << " | status=0x" << std::setw(2) << static_cast<int>(buffer[STATUS_OFFSET]) << std::dec
+            << " percent=" << static_cast<int>(buffer[PERCENT_OFFSET])
+            << " voltage=" << (buffer[VOLTAGE_OFFSET] | (buffer[VOLTAGE_OFFSET + 1] << 8)) << "mV";
+        return oss.str();
+    }
+
+    static constexpr DWORD REPORT_SIZE = 64;
+    static constexpr DWORD STATUS_OFFSET = 1;
+    static constexpr DWORD PERCENT_OFFSET = 16;
+    static constexpr DWORD VOLTAGE_OFFSET = 17; // uint16 little endian, millivolts
 
     HIDDevice device;
     USHORT currentPid = 0;
