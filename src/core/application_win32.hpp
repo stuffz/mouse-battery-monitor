@@ -203,6 +203,11 @@ private:
         Logger::Instance().SetLogFile("battery_monitor.log");
         LOG_DEBUG("Logger configured");
 
+        for (const auto &error : config.GetErrors())
+        {
+            LOG_ERROR("config.ini: " + error);
+        }
+
         return true;
     }
 

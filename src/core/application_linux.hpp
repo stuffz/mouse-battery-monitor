@@ -205,6 +205,11 @@ private:
             LOG_ERROR("Failed to load " + configPath.string() + ", using defaults");
         }
 
+        for (const auto &error : config.GetErrors())
+        {
+            LOG_ERROR(configPath.string() + ": " + error);
+        }
+
         LOG_DEBUG("Logger configured");
     }
 

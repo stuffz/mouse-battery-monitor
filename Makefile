@@ -77,6 +77,9 @@ CXXFLAGS = $(COMMON_CXXFLAGS) -fPIC $(PKG_CFLAGS)
 LDFLAGS =
 LIBS = $(PKG_LIBS) -lpthread
 
+# lint reads the tests' compile database, which only test-build writes.
+LINT_DEPS = test-build
+
 ifeq ($(DEBUG), 1)
     CXXFLAGS += -g -DDEBUG
 endif
@@ -88,7 +91,8 @@ OBJECTS = $(SOURCES:$(SRC_DIR)/%.cpp=$(OBJ_DIR)/%.o)
 DEPS = $(OBJECTS:.o=.d)
 
 .PHONY: all build clean run help deps lint format format-check install uninstall \
-	install-udev-rules uninstall-udev-rules
+	install-udev-rules uninstall-udev-rules test test-build image container-build \
+	container-test container-lint container-format-check
 
 FORMAT_SOURCES := $(shell git ls-files '*.cpp' '*.hpp')
 
@@ -160,7 +164,11 @@ format-check:
 LINT_HEADERS := $(shell git ls-files 'src/*.hpp' | \
 	grep -vE '(win32|app_window|context_menu)')
 
-lint:
+# The tests go through the database test-build exports instead: each one
+# includes moc output that exists only in the test build tree.
+LINT_TESTS := $(shell find tests -name '*.cpp' | sort)
+
+lint: $(LINT_DEPS)
 ifeq ($(PLATFORM),windows)
 	echo "lint is only supported on Linux."
 else
@@ -168,7 +176,9 @@ else
 	@printf '%s\n' $(SOURCES) $(LINT_HEADERS) | xargs -P $$(nproc) -I{} \
 		clang-tidy --quiet --warnings-as-errors='*' {} -- \
 		-xc++ -Wno-pragma-once-outside-header $(CXXFLAGS)
-	@echo "clang-tidy clean ($(words $(SOURCES) $(LINT_HEADERS)) files)"
+	@printf '%s\n' $(LINT_TESTS) | xargs -P $$(nproc) -I{} \
+		clang-tidy --quiet --warnings-as-errors='*' -p tests {}
+	@echo "clang-tidy clean ($(words $(SOURCES) $(LINT_HEADERS) $(LINT_TESTS)) files)"
 	@if command -v cppcheck >/dev/null; then \
 		cppcheck --quiet --enable=warning,performance,portability --inline-suppr \
 			--suppress=missingIncludeSystem --error-exitcode=1 \
@@ -177,6 +187,63 @@ else
 		echo "cppcheck not found, skipping (Arch: cppcheck)"; \
 	fi
 endif
+
+# ------------------------------------------------------------------ tests ----
+# CMake rather than this Makefile: QTest needs moc, and CMAKE_AUTOMOC plus
+# CTest is the whole of that rule. tests/ is its own CMake project so nothing
+# suggests the app builds any other way than the rules above.
+CMAKE ?= cmake
+CTEST ?= ctest
+# Host and container need separate directories: a CMake cache records the
+# absolute path it was configured at, and the container's is /work.
+TEST_DIR ?= $(BUILD_BASE)/test
+CONTAINER_TEST_DIR = $(BUILD_BASE)/test-container
+
+# Qt6 adds this for itself, in the spelling GCC accepts. clangd and clang-tidy
+# are clang and reject it, so the database they read loses it.
+GCC_ONLY_FLAG = -mno-direct-extern-access
+
+ifeq ($(PLATFORM),windows)
+test test-build:
+	echo "tests are only supported on Linux."
+else
+# The compile database lands in tests/, not the root: clangd picks the nearest
+# one, so the tests get their moc include paths from it while src/ keeps
+# reading compile_flags.txt.
+test-build:
+	$(CMAKE) -S tests -B "$(TEST_DIR)" -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+	$(CMAKE) --build "$(TEST_DIR)" --parallel
+	sed 's/ $(GCC_ONLY_FLAG)//g' "$(TEST_DIR)/compile_commands.json" > tests/compile_commands.json
+
+test: test-build
+	$(CTEST) --test-dir "$(TEST_DIR)" --output-on-failure
+endif
+
+# -------------------------------------------------------------- container ----
+# Everything the build needs lives in the image; nothing installs on the host.
+DOCKER ?= docker
+IMAGE = mouse-battery-monitor-build
+DOCKER_RUN = $(DOCKER) run --rm -u $(shell id -u):$(shell id -g) \
+	-e TEST_DIR="$(CONTAINER_TEST_DIR)" -v "$(CURDIR)":/work -w /work $(IMAGE)
+
+image:
+	$(DOCKER) build -t $(IMAGE) .
+
+container-build: image
+	$(DOCKER_RUN) make build
+
+# /work is this directory bind mounted, so rewriting the paths makes the
+# database name the same files, generated moc output included.
+container-test: image
+	$(DOCKER_RUN) make test
+	sed 's|/work|$(CURDIR)|g' "$(CONTAINER_TEST_DIR)/compile_commands.json" | \
+		sed 's/ $(GCC_ONLY_FLAG)//g' > tests/compile_commands.json
+
+container-lint: image
+	$(DOCKER_RUN) make lint
+
+container-format-check: image
+	$(DOCKER_RUN) make format-check
 
 # ---------------------------------------------------------------- install ----
 install: build
@@ -233,6 +300,12 @@ help:
 	@echo "  build                 - Build without cleaning"
 	@echo "  clean                 - Remove build artifacts"
 	@echo "  run                   - Build and run"
+	@echo "  test                  - Configure with CMake and run the CTest suite (Linux)"
+	@echo "  image                 - Build the build container image"
+	@echo "  container-build       - Build inside the container"
+	@echo "  container-test        - Run the CTest suite inside the container"
+	@echo "  container-lint        - Run clang-tidy inside the container"
+	@echo "  container-format-check- Run clang-format check inside the container"
 	@echo "  deps                  - Check build dependencies (Linux)"
 	@echo "  format                - Rewrite sources with clang-format"
 	@echo "  format-check          - Fail if any source is not clang-format clean"

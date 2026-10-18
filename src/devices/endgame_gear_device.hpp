@@ -57,14 +57,10 @@ public:
 
         constexpr BYTE REPORT_ID = 0xA1;
         constexpr BYTE BATTERY_CMD = 0xB4;
-        constexpr BYTE STATUS_OK = 0x01;
-        constexpr BYTE STATUS_MOUSE_UNREACHABLE = 0x08;
         constexpr int NUM_ATTEMPTS = 2;
 
         try
         {
-            BatteryStatus status;
-
             for (int attempt = 0; attempt < NUM_ATTEMPTS; ++attempt)
             {
                 LOG_DEBUG(std::string(GetDeviceType()) + ": Attempt " +
@@ -93,27 +89,7 @@ public:
                     continue;
                 }
 
-                if (readBuffer[STATUS_OFFSET] == STATUS_MOUSE_UNREACHABLE)
-                {
-                    // The dongle answers 0x08 when the mouse is asleep or switched
-                    // off. The payload is then the previous reply still sitting in
-                    // its buffer, so byte[16] is stale and must not be reported.
-                    LOG_DEBUG(std::string(GetDeviceType()) +
-                              ": Mouse unreachable (asleep or off) - stale payload ignored");
-                    return {};
-                }
-
-                if (readBuffer[STATUS_OFFSET] != STATUS_OK)
-                {
-                    LOG_DEBUG(std::string(GetDeviceType()) +
-                              ": Invalid response - unexpected status byte");
-                    return {};
-                }
-
-                status = ParseBatteryResponse(readBuffer[PERCENT_OFFSET]);
-                LOG_DEBUG(std::string(GetDeviceType()) + ": Success - Battery " +
-                          std::to_string(status.percentage) + "%");
-                return status;
+                return DecodeReply(readBuffer);
             }
         }
         catch (const std::exception &ex)
@@ -168,6 +144,30 @@ protected:
         return device.SendFeatureReport(writeBuffer, size);
     }
 
+    BatteryStatus DecodeReply(const BYTE *reply) const
+    {
+        if (reply[STATUS_OFFSET] == STATUS_MOUSE_UNREACHABLE)
+        {
+            // The dongle answers 0x08 when the mouse is asleep or switched
+            // off. The payload is then the previous reply still sitting in
+            // its buffer, so byte[16] is stale and must not be reported.
+            LOG_DEBUG(std::string(GetDeviceType()) +
+                      ": Mouse unreachable (asleep or off) - stale payload ignored");
+            return {};
+        }
+
+        if (reply[STATUS_OFFSET] != STATUS_OK)
+        {
+            LOG_DEBUG(std::string(GetDeviceType()) + ": Invalid response - unexpected status byte");
+            return {};
+        }
+
+        const BatteryStatus status = ParseBatteryResponse(reply[PERCENT_OFFSET]);
+        LOG_DEBUG(std::string(GetDeviceType()) + ": Success - Battery " +
+                  std::to_string(status.percentage) + "%");
+        return status;
+    }
+
     BatteryStatus ParseBatteryResponse(BYTE batteryValue) const
     {
         BatteryStatus status;
@@ -199,6 +199,9 @@ protected:
     static constexpr DWORD STATUS_OFFSET = 1;
     static constexpr DWORD PERCENT_OFFSET = 16;
     static constexpr DWORD VOLTAGE_OFFSET = 17; // uint16 little endian, millivolts
+
+    static constexpr BYTE STATUS_OK = 0x01;
+    static constexpr BYTE STATUS_MOUSE_UNREACHABLE = 0x08;
 
     HIDDevice device;
     USHORT currentPid = 0;

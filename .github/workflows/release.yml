@@ -20,7 +20,7 @@ jobs:
               run: |
                   sudo apt-get update
                   sudo apt-get install -y build-essential qt6-base-dev libudev-dev \
-                      clang-format clang-tidy cppcheck
+                      clang-format clang-tidy cppcheck cmake
 
             - name: Check formatting
               run: make format-check
@@ -30,6 +30,9 @@ jobs:
 
             - name: Lint
               run: make lint
+
+            - name: Test
+              run: make test
 
             - name: Smoke test
               run: ./build/release/mouse-battery-monitor --version

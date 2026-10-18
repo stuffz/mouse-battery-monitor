@@ -1,0 +1,24 @@
+{
+    // The same image make container-* uses, so what runs here and what runs
+    // from the host is the one toolchain.
+    //
+    //   devcontainer up
+    //   devcontainer exec make test
+    //
+    // Inside, use the plain targets: make, make test, make lint. The
+    // container-* ones start a container of their own.
+    "name": "mouse-battery-monitor",
+    "build": {
+        "dockerfile": "../Dockerfile",
+        "context": ".."
+    },
+    // /work, matching where make container-* mounts it: a CMake cache records
+    // the absolute path it was configured at.
+    "workspaceMount": "source=${localWorkspaceFolder},target=/work,type=bind",
+    "workspaceFolder": "/work",
+    "containerEnv": {
+        "TEST_DIR": "build/test-container"
+    },
+    "remoteUser": "builder",
+    "updateRemoteUserUID": true
+}

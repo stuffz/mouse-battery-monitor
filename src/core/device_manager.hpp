@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 class DeviceManager
@@ -16,14 +17,11 @@ class DeviceManager
 public:
     using BatteryStatus = MouseDevice::BatteryStatus;
 
-    DeviceManager()
+    DeviceManager() : DeviceManager(SupportedDevices()) {}
+
+    explicit DeviceManager(std::vector<std::unique_ptr<MouseDevice>> candidates)
+        : devices(std::move(candidates))
     {
-        devices.push_back(std::make_unique<EndgameGearMouse>());
-        devices.push_back(std::make_unique<EndgameGearDongle>());
-
-        devices.push_back(std::make_unique<VaxeeMouse>());
-        devices.push_back(std::make_unique<VaxeeDongle>());
-
         std::sort(devices.begin(), devices.end(),
                   [](const auto &a, const auto &b) { return a->GetPriority() < b->GetPriority(); });
     }
@@ -107,4 +105,17 @@ public:
 private:
     std::vector<std::unique_ptr<MouseDevice>> devices;
     MouseDevice *activeDevice = nullptr;
+
+    static std::vector<std::unique_ptr<MouseDevice>> SupportedDevices()
+    {
+        std::vector<std::unique_ptr<MouseDevice>> supported;
+
+        supported.push_back(std::make_unique<EndgameGearMouse>());
+        supported.push_back(std::make_unique<EndgameGearDongle>());
+
+        supported.push_back(std::make_unique<VaxeeMouse>());
+        supported.push_back(std::make_unique<VaxeeDongle>());
+
+        return supported;
+    }
 };

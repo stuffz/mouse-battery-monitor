@@ -12,6 +12,7 @@ release/
 
 # IDE files
 .clangd
+tests/compile_commands.json
 .vscode/
 .vs/
 *.suo

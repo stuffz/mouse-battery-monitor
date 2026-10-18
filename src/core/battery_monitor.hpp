@@ -8,11 +8,14 @@
 #include <exception>
 #include <sstream>
 #include <string>
+#include <utility>
 
 class BatteryMonitor
 {
 public:
     BatteryMonitor() = default;
+
+    explicit BatteryMonitor(DeviceManager devices) : deviceManager(std::move(devices)) {}
 
     void init(TrayIcon *tray, IconLoader *icons, NotificationManager *notifications)
     {
@@ -71,7 +74,11 @@ public:
     {
         LOG_INFO("USB removal detected");
         deviceManager.Disconnect();
-        handleDisconnected();
+
+        // Every HID removal lands here, whichever device went. Reconnecting at
+        // once keeps the tray from showing "No device connected" until the
+        // next poll when it was some other device.
+        update();
     }
 
     void onDeviceArrived()

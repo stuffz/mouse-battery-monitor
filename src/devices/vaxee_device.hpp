@@ -9,6 +9,7 @@
 #include <exception>
 #include <iomanip>
 #include <ios>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <thread>
@@ -98,14 +99,12 @@ public:
                     << static_cast<int>(readBuffer[5]);
                 LOG_DEBUG(oss.str());
 
-                // byte[2] echoes the command id; 0 means the device ignored it.
-                if (readBuffer[2] == 0)
+                const std::optional<int> batteryLevel = DecodeLevel(readBuffer);
+                if (!batteryLevel)
                 {
                     LOG_DEBUG(std::string(GetDeviceType()) + ": Invalid response - no cmd_id echo");
                     continue;
                 }
-
-                int batteryLevel = (std::min)(static_cast<int>(readBuffer[5]) * 5, 100);
 
                 bool isCharging = false;
                 if (SendCommand(CMD_CHARGING_STATUS, CMD_READ, 0x01))
@@ -115,14 +114,14 @@ public:
                     BYTE chargeBuffer[REPORT_SIZE] = {0};
                     if (device.GetFeatureReport(REPORT_ID, chargeBuffer, REPORT_SIZE))
                     {
-                        isCharging = chargeBuffer[5] != 0;
+                        isCharging = DecodeCharging(chargeBuffer);
                         LOG_DEBUG(std::string(GetDeviceType()) + ": Charging status byte: " +
                                   std::to_string(static_cast<int>(chargeBuffer[5])));
                     }
                 }
 
                 BatteryStatus status;
-                status.percentage = batteryLevel;
+                status.percentage = *batteryLevel;
                 status.isCharging = isCharging;
                 LOG_DEBUG(std::string(GetDeviceType()) + ": Success - Battery " +
                           std::to_string(status.percentage) +
@@ -184,6 +183,18 @@ protected:
         writeBuffer[4] = dataLength;
         return device.SendFeatureReport(writeBuffer, REPORT_SIZE);
     }
+
+    // byte[2] echoes the command id; 0 means the device ignored it.
+    static std::optional<int> DecodeLevel(const BYTE *reply)
+    {
+        if (reply[2] == 0)
+        {
+            return std::nullopt;
+        }
+        return (std::min)(static_cast<int>(reply[5]) * 5, 100);
+    }
+
+    static bool DecodeCharging(const BYTE *reply) { return reply[5] != 0; }
 
     HIDDevice device;
     USHORT currentPid = 0;
