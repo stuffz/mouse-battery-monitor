@@ -61,6 +61,13 @@ public:
 
         try
         {
+            // Endgame's tool sends no probe over a cable.
+            if (!IsWiredPID(currentPid) && !Probe(REPORT_ID))
+            {
+                LOG_DEBUG(std::string(GetDeviceType()) + ": Probe failed");
+                return {};
+            }
+
             for (int attempt = 0; attempt < NUM_ATTEMPTS; ++attempt)
             {
                 LOG_DEBUG(std::string(GetDeviceType()) + ": Attempt " +
@@ -72,10 +79,10 @@ public:
                     return {};
                 }
 
-                std::this_thread::sleep_for(std::chrono::milliseconds(350));
+                std::this_thread::sleep_for(REPLY_WAIT);
 
                 BYTE readBuffer[REPORT_SIZE] = {0};
-                if (!device.GetFeatureReport(REPORT_ID, readBuffer, REPORT_SIZE))
+                if (!ReadReport(REPORT_ID, readBuffer, REPORT_SIZE))
                 {
                     LOG_DEBUG(std::string(GetDeviceType()) + ": Failed to get feature report");
                     return {};
@@ -85,7 +92,7 @@ public:
 
                 if (attempt == 0)
                 {
-                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                    std::this_thread::sleep_for(ATTEMPT_GAP);
                     continue;
                 }
 
@@ -141,7 +148,18 @@ protected:
         BYTE writeBuffer[64] = {0};
         writeBuffer[0] = reportId;
         writeBuffer[1] = command;
-        return device.SendFeatureReport(writeBuffer, size);
+        return SendReport(writeBuffer, size);
+    }
+
+    // Virtual so tests can stand in for the device.
+    virtual bool SendReport(const BYTE *buffer, DWORD size) const
+    {
+        return device.SendFeatureReport(buffer, size);
+    }
+
+    virtual bool ReadReport(BYTE reportId, BYTE *buffer, DWORD size) const
+    {
+        return device.GetFeatureReport(reportId, buffer, size);
     }
 
     BatteryStatus DecodeReply(const BYTE *reply) const
@@ -190,8 +208,10 @@ protected:
         }
 
         oss << " | status=0x" << std::setw(2) << static_cast<int>(buffer[STATUS_OFFSET]) << std::dec
-            << " percent=" << static_cast<int>(buffer[PERCENT_OFFSET])
-            << " voltage=" << (buffer[VOLTAGE_OFFSET] | (buffer[VOLTAGE_OFFSET + 1] << 8)) << "mV";
+            << " percent=" << static_cast<int>(buffer[PERCENT_OFFSET]) << " voltage="
+            << (static_cast<unsigned>(buffer[VOLTAGE_OFFSET]) |
+                (static_cast<unsigned>(buffer[VOLTAGE_OFFSET + 1]) << 8U))
+            << "mV";
         return oss.str();
     }
 
@@ -203,6 +223,46 @@ protected:
     static constexpr BYTE STATUS_OK = 0x01;
     static constexpr BYTE STATUS_MOUSE_UNREACHABLE = 0x08;
 
+    static constexpr BYTE PROBE_CMD = 0x0F;
+    static constexpr BYTE PROBE_TARGET_MOUSE = 0x0F;
+
+    static constexpr std::chrono::milliseconds REPLY_WAIT{350};
+    static constexpr std::chrono::milliseconds ATTEMPT_GAP{100};
+    static constexpr std::chrono::milliseconds PROBE_REPLY_WAIT{300};
+
     HIDDevice device;
     USHORT currentPid = 0;
+
+private:
+    // Endgame's tool probes before every command over the dongle and skips the
+    // command unless the probe answers 0x01. Added after the dongle kept
+    // answering 0x08 to a moving mouse until it was replugged. The tool tries
+    // target 0x01 first; 0x0F answered 0x01 whether or not the mouse slept.
+    bool Probe(BYTE reportId) const
+    {
+        BYTE writeBuffer[REPORT_SIZE] = {0};
+        writeBuffer[0] = reportId;
+        writeBuffer[1] = PROBE_CMD;
+        writeBuffer[2] = PROBE_TARGET_MOUSE;
+
+        if (!SendReport(writeBuffer, REPORT_SIZE))
+        {
+            return false;
+        }
+
+        std::this_thread::sleep_for(PROBE_REPLY_WAIT);
+
+        BYTE readBuffer[REPORT_SIZE] = {0};
+        if (!ReadReport(reportId, readBuffer, REPORT_SIZE))
+        {
+            return false;
+        }
+
+        std::ostringstream oss;
+        oss << GetDeviceType() << ": Probe status=0x" << std::hex << std::setfill('0')
+            << std::setw(2) << static_cast<int>(readBuffer[STATUS_OFFSET]);
+        LOG_DEBUG(oss.str());
+
+        return readBuffer[STATUS_OFFSET] == STATUS_OK;
+    }
 };

@@ -430,6 +430,8 @@ private:
         const int flags = ::fcntl(fd, F_GETFL, 0);
         if (flags >= 0)
         {
+            // POSIX types the flags as int.
+            // NOLINTNEXTLINE(bugprone-signed-bitwise)
             ::fcntl(fd, F_SETFL, flags | O_NONBLOCK);
         }
 

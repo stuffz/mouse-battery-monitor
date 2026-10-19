@@ -37,6 +37,15 @@ Battery status is read using HID feature reports with a 64-byte buffer.
 
 The request is sent as a HID Set Feature Report.
 
+On the dongle the battery request is preceded by a probe (see Probe below):
+
+| Byte | Value | Description                   |
+| ---- | ----- | ----------------------------- |
+| 0    | 0xA1  | Report ID                     |
+| 1    | 0x0F  | Probe command                 |
+| 2    | 0x0F  | Target: mouse (0x01 = dongle) |
+| 3-63 | 0x00  | Padding                       |
+
 ### Response
 
 The response is read as a HID Get Feature Report with Report ID 0xA1.
@@ -74,11 +83,19 @@ as the mouse was idle.
 - `byte[1]` must be `0x01` for a valid response.
 - `0x08` is a sleeping mouse: keep the last known status, do not parse the payload.
 - The battery percentage at `byte[16]` is clamped to 100.
+- On the dongle, the probe reply's `byte[1]` must be `0x01`; otherwise the battery request is not sent.
+
+### Probe
+
+Endgame's configuration tool (v1.04) sends a probe before every command over the dongle, battery included: `0xA1 0x0F <target>`, wait 300ms, read the reply. It tries target `0x01`, falls back to `0x0F`, and skips the command unless a probe answers `0x01`. Over a cable it sends no probe.
+
+The app probes with target `0x0F`, which answered `0x01` with the mouse both asleep and awake. The probe was added after the dongle once kept answering `0x08` to a moving mouse until it was replugged; a USB reset did not clear it. Whether the probe clears that state is not yet confirmed.
 
 ### Timing
 
-The protocol requires two consecutive read cycles. The first read is discarded as a wake-up, and the second contains actual data.
+The protocol requires two consecutive read cycles. The first read is discarded as a wake-up, and the second contains actual data. On the dongle, a probe comes first.
 
+0. Dongle only: send the probe, wait **300ms**, read its reply (stop unless `0x01`)
 1. Send feature report (battery command)
 2. Wait **350ms**
 3. Read feature report (discard result)

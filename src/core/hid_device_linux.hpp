@@ -227,7 +227,7 @@ private:
 
         for (size_t i = 0; i < descriptor.size();)
         {
-            const BYTE prefix = descriptor[i];
+            const unsigned prefix = descriptor[i];
 
             if (prefix == LONG_ITEM_PREFIX)
             {
@@ -239,9 +239,9 @@ private:
                 continue;
             }
 
-            const BYTE tag = static_cast<BYTE>(prefix >> 4);
-            const BYTE type = static_cast<BYTE>((prefix >> 2) & 0x03);
-            const size_t dataSize = (prefix & 0x03) == 3 ? 4 : (prefix & 0x03);
+            const BYTE tag = static_cast<BYTE>(prefix >> 4U);
+            const BYTE type = static_cast<BYTE>((prefix >> 2U) & 0x03U);
+            const size_t dataSize = (prefix & 0x03U) == 3U ? 4U : (prefix & 0x03U);
 
             if (i + 1 + dataSize > descriptor.size())
             {
@@ -274,8 +274,8 @@ private:
             {
                 // An extended usage carries its page for this usage only; being a
                 // local item it must not overwrite the global usage page.
-                pendingUsagePage = (dataSize == 4) ? static_cast<USHORT>(value >> 16) : usagePage;
-                pendingUsage = static_cast<USHORT>(value & 0xFFFF);
+                pendingUsagePage = (dataSize == 4) ? static_cast<USHORT>(value >> 16U) : usagePage;
+                pendingUsage = static_cast<USHORT>(value & 0xFFFFU);
                 haveUsage = true;
             }
             else if (type == TYPE_MAIN)
